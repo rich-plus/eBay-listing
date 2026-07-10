@@ -887,15 +887,7 @@ function sendToSheets() {
       statusEl.style.color  = 'var(--green)';
       // 現在の保存エントリに記録済みフラグを付ける
       var currentKey = LAST_SAVE_KEY || getSaveKey();
-      var ridx = JSON.parse(localStorage.getItem('pokeca_index') || '[]');
-      for (var ri = 0; ri < ridx.length; ri++) {
-        if (ridx[ri].key === currentKey) {
-          ridx[ri].recorded   = true;
-          ridx[ri].recordedAt = new Date().toLocaleString('ja-JP');
-          break;
-        }
-      }
-      localStorage.setItem('pokeca_index', JSON.stringify(ridx));
+      gasCall({action:'pokecaSetRecorded', key:currentKey}, null);
     } else {
       statusEl.textContent  = '❌ GASエラー: ' + (res && res.msg ? res.msg : '不明なエラー');
       statusEl.style.color  = 'var(--red)';
@@ -1149,9 +1141,6 @@ function incBlock() {
 
 // ── 自動保存・復元 ────────────────────────────────────────
 
-// セッション内でPAGE_IDを固定（リロードしても同じキーを使う）
-// 新規作成ボタン経由で開いた場合はハッシュ #new が付くので強制的に新しいIDを生成する
-// （window.open は親の sessionStorage をコピーするため、ハッシュで区別が必要）
 var PAGE_ID;
 if (/^#new/.test(location.hash)) {
   history.replaceState(null, '', location.pathname + location.search);
@@ -1160,8 +1149,33 @@ if (/^#new/.test(location.hash)) {
   PAGE_ID = sessionStorage.getItem('pokeca_pid') || ('draft_' + Date.now().toString(36));
 }
 sessionStorage.setItem('pokeca_pid', PAGE_ID);
-var LAST_SAVE_KEY = null; // キー変化時（ドラフト→SKU）の古エントリ自動削除用
+var LAST_SAVE_KEY = null;
 var autoSaveTimer = null;
+
+function gasCall(params, callback) {
+  var url = localStorage.getItem('gsheet_script_url') || '';
+  if (!url) {
+    if (callback) callback({status:'error', msg:'GAS URLが未設定です'});
+    return;
+  }
+  var cbName = '__gcb_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+  var qs = Object.keys(params).map(function(k) {
+    return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+  }).join('&') + '&callback=' + encodeURIComponent(cbName);
+  var s = document.createElement('script');
+  s.src = url + '?' + qs;
+  window[cbName] = function(res) {
+    delete window[cbName];
+    if (s.parentNode) s.parentNode.removeChild(s);
+    if (callback) callback(res);
+  };
+  s.onerror = function() {
+    delete window[cbName];
+    if (s.parentNode) s.parentNode.removeChild(s);
+    if (callback) callback({status:'error', msg:'通信エラー'});
+  };
+  document.head.appendChild(s);
+}
 
 function scheduleAutoSave() {
   clearTimeout(autoSaveTimer);
@@ -1211,20 +1225,12 @@ function autoSave() {
   if (!state.productName && !state.sku && !state.title && !state.titleInput) return;
   var newKey = getSaveKey();
 
-  // キーが変わった場合（ドラフト → SKU入力後など）は古いエントリを削除して重複を防ぐ
   if (LAST_SAVE_KEY && newKey !== LAST_SAVE_KEY) {
-    localStorage.removeItem(LAST_SAVE_KEY);
-    var idx2 = JSON.parse(localStorage.getItem('pokeca_index') || '[]');
-    localStorage.setItem('pokeca_index', JSON.stringify(idx2.filter(function(e){ return e.key !== LAST_SAVE_KEY; })));
+    gasCall({action:'pokecaDelete', key:LAST_SAVE_KEY}, null);
   }
   LAST_SAVE_KEY = newKey;
 
-  localStorage.setItem(newKey, JSON.stringify(state));
-  var index = JSON.parse(localStorage.getItem('pokeca_index') || '[]');
-  var pos = -1;
-  for (var i = 0; i < index.length; i++) { if (index[i].key === newKey) { pos = i; break; } }
-  var entry = {
-    key: newKey,
+  var meta = {
     productName:   state.productName || '（名称未設定）',
     sku:           state.sku,
     savedAt:       state._savedAt,
@@ -1233,22 +1239,23 @@ function autoSave() {
     platform:      state.platform === 'その他' ? (state.platformOther || 'その他') : state.platform,
     listingDate:   state.listingDate
   };
-  if (pos >= 0) {
-    if (index[pos].recorded) entry.recorded = index[pos].recorded; // 記録済みフラグを引き継ぐ
-    index[pos] = entry;
-  } else {
-    index.unshift(entry);
-  }
-  localStorage.setItem('pokeca_index', JSON.stringify(index));
-  updateSaveCount();
-  // パネルが開いていれば一覧も即時更新
-  var panel = document.getElementById('saveListPanel');
-  if (panel && panel.style.display !== 'none') renderSaveList();
+  gasCall({
+    action: 'pokecaSave',
+    payload: JSON.stringify({key:newKey, label:JSON.stringify(meta), ts:new Date().toISOString(), recorded:false, data:state})
+  }, function(res) {
+    if (res && res.status === 'ok') {
+      updateSaveCount();
+      var panel = document.getElementById('saveListPanel');
+      if (panel && panel.style.display !== 'none') renderSaveList();
+    }
+  });
 }
 
 function updateSaveCount() {
-  var index = JSON.parse(localStorage.getItem('pokeca_index') || '[]');
-  document.getElementById('saveCount').textContent = index.length;
+  gasCall({action:'pokecaList'}, function(res) {
+    var count = (res && res.status==='ok' && res.index) ? res.index.length : 0;
+    document.getElementById('saveCount').textContent = count;
+  });
 }
 
 function toggleSaveList() {
@@ -1263,112 +1270,100 @@ function toggleSaveList() {
 }
 
 function renderSaveList() {
-  var index;
-  try { index = JSON.parse(localStorage.getItem('pokeca_index') || '[]'); }
-  catch(e) { index = []; }
   var con = document.getElementById('saveListItems');
   if (!con) return;
-
-  if (!index.length) {
-    con.innerHTML = '<div style="color:#aaa;font-size:12px;padding:6px 0">保存済みのカードはまだありません</div>';
-    return;
-  }
-
-  con.innerHTML = '';
-
-  // 一括削除ボタン
-  var clearWrap = document.createElement('div');
-  clearWrap.style.cssText = 'text-align:right;margin-bottom:8px;';
-  var clearBtn = document.createElement('button');
-  clearBtn.textContent = '🗑 リストをすべてクリア';
-  clearBtn.style.cssText = 'font-size:11px;padding:3px 10px;border:1px solid #f0a0a0;background:#fff5f5;color:#c00;border-radius:6px;cursor:pointer;font-family:inherit;';
-  clearBtn.onclick = function() {
-    if (!confirm('保存済みリストをすべて削除しますか？\n（元に戻せません）')) return;
-    index.forEach(function(e){ if(e&&e.key) localStorage.removeItem(e.key); });
-    localStorage.removeItem('pokeca_index');
-    LAST_SAVE_KEY = null;
-    updateSaveCount();
-    renderSaveList();
-  };
-  clearWrap.appendChild(clearBtn);
-  con.appendChild(clearWrap);
-
-  // 各エントリを描画
-  var safe = function(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
-  index.forEach(function(e) {
-    if (!e || !e.key) return; // 壊れたエントリをスキップ
-    try {
-      var div = document.createElement('div');
-      div.className = 'save-item' + (e.recorded ? ' recorded' : '');
-
-      var nameDiv = document.createElement('div');
-      nameDiv.className = 'save-item-name';
-      nameDiv.textContent = e.productName || '（名称未設定）';
-      if (e.recorded) {
-        var badge = document.createElement('span');
-        badge.className = 'save-recorded-badge';
-        badge.textContent = '✅ 記録済み';
-        nameDiv.appendChild(badge);
-      }
-
-      var metaDiv = document.createElement('div');
-      metaDiv.className = 'save-item-meta';
-      var infoParts = [];
-      if (e.sku)           infoParts.push('SKU: <b>' + safe(e.sku) + '</b>');
-      if (e.purchaseDate)  infoParts.push('仕入れ日: ' + safe(e.purchaseDate));
-      if (e.purchasePrice) infoParts.push('仕入れ金額: ¥' + safe(e.purchasePrice));
-      if (e.platform)      infoParts.push('購入先: ' + safe(e.platform));
-      if (e.listingDate)   infoParts.push('出品日: ' + safe(e.listingDate));
-      metaDiv.innerHTML = (infoParts.length ? infoParts.join(' &nbsp;|&nbsp; ') + '<br>' : '')
-        + '<small style="color:#aaa">保存: ' + safe(e.savedAt || '')
-        + (e.recordedAt ? ' &nbsp;|&nbsp; 記録: ' + safe(e.recordedAt) : '') + '</small>';
-
-      var btnsDiv = document.createElement('div');
-      btnsDiv.className = 'save-item-btns';
-
-      var loadBtn = document.createElement('button');
-      loadBtn.className = 'btn-save-load';
-      loadBtn.innerHTML = '&#128194; 読み込む';
-      loadBtn.onclick = (function(k){ return function(){ loadSave(k); }; })(e.key);
-
-      var delBtn = document.createElement('button');
-      delBtn.className = 'btn-save-del';
-      delBtn.innerHTML = '&#128465; 削除';
-      delBtn.onclick = (function(k){ return function(){ deleteSave(k); }; })(e.key);
-
-      btnsDiv.appendChild(loadBtn);
-      btnsDiv.appendChild(delBtn);
-      div.appendChild(nameDiv);
-      div.appendChild(metaDiv);
-      div.appendChild(btnsDiv);
-      con.appendChild(div);
-    } catch(err) { /* 個別エントリのエラーをスキップ */ }
+  con.innerHTML = '<div style="color:#aaa;font-size:12px;padding:6px 0">読込中...</div>';
+  gasCall({action:'pokecaList'}, function(res) {
+    var index = (res && res.status==='ok' && res.index) ? res.index : [];
+    con.innerHTML = '';
+    if (!index.length) {
+      con.innerHTML = '<div style="color:#aaa;font-size:12px;padding:6px 0">保存済みのカードはまだありません</div>';
+      return;
+    }
+    var clearWrap = document.createElement('div');
+    clearWrap.style.cssText = 'text-align:right;margin-bottom:8px;';
+    var clearBtn = document.createElement('button');
+    clearBtn.textContent = '🗑 リストをすべてクリア';
+    clearBtn.style.cssText = 'font-size:11px;padding:3px 10px;border:1px solid #f0a0a0;background:#fff5f5;color:#c00;border-radius:6px;cursor:pointer;font-family:inherit;';
+    clearBtn.onclick = function() {
+      if (!confirm('保存済みリストをすべて削除しますか？\n（元に戻せません）')) return;
+      gasCall({action:'pokecaClear'}, function() {
+        LAST_SAVE_KEY = null;
+        updateSaveCount();
+        renderSaveList();
+      });
+    };
+    clearWrap.appendChild(clearBtn);
+    con.appendChild(clearWrap);
+    var safe = function(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+    index.forEach(function(e) {
+      if (!e || !e.key) return;
+      try {
+        var meta;
+        try { meta = JSON.parse(e.label); } catch(err) { meta = {productName: e.label}; }
+        var div = document.createElement('div');
+        div.className = 'save-item' + (e.recorded ? ' recorded' : '');
+        var nameDiv = document.createElement('div');
+        nameDiv.className = 'save-item-name';
+        nameDiv.textContent = meta.productName || '（名称未設定）';
+        if (e.recorded) {
+          var badge = document.createElement('span');
+          badge.className = 'save-recorded-badge';
+          badge.textContent = '✅ 記録済み';
+          nameDiv.appendChild(badge);
+        }
+        var metaDiv = document.createElement('div');
+        metaDiv.className = 'save-item-meta';
+        var infoParts = [];
+        if (meta.sku)           infoParts.push('SKU: <b>' + safe(meta.sku) + '</b>');
+        if (meta.purchaseDate)  infoParts.push('仕入れ日: ' + safe(meta.purchaseDate));
+        if (meta.purchasePrice) infoParts.push('仕入れ金額: ¥' + safe(meta.purchasePrice));
+        if (meta.platform)      infoParts.push('購入先: ' + safe(meta.platform));
+        if (meta.listingDate)   infoParts.push('出品日: ' + safe(meta.listingDate));
+        metaDiv.innerHTML = (infoParts.length ? infoParts.join(' &nbsp;|&nbsp; ') + '<br>' : '')
+          + '<small style="color:#aaa">保存: ' + safe(meta.savedAt || e.ts || '') + '</small>';
+        var btnsDiv = document.createElement('div');
+        btnsDiv.className = 'save-item-btns';
+        var loadBtn = document.createElement('button');
+        loadBtn.className = 'btn-save-load';
+        loadBtn.innerHTML = '&#128194; 読み込む';
+        loadBtn.onclick = (function(k){ return function(){ loadSave(k); }; })(e.key);
+        var delBtn = document.createElement('button');
+        delBtn.className = 'btn-save-del';
+        delBtn.innerHTML = '&#128465; 削除';
+        delBtn.onclick = (function(k){ return function(){ deleteSave(k); }; })(e.key);
+        btnsDiv.appendChild(loadBtn);
+        btnsDiv.appendChild(delBtn);
+        div.appendChild(nameDiv);
+        div.appendChild(metaDiv);
+        div.appendChild(btnsDiv);
+        con.appendChild(div);
+      } catch(err) {}
+    });
   });
 }
 
 function loadSave(key) {
-  var raw = localStorage.getItem(key);
-  if (!raw) { alert('保存データが見つかりません'); return; }
   if (!confirm('現在の入力内容を上書きして読み込みますか？')) return;
-  // 現在のドラフトが別キーなら削除してから読み込む
   if (LAST_SAVE_KEY && LAST_SAVE_KEY !== key && /^pokeca_draft_/.test(LAST_SAVE_KEY)) {
-    localStorage.removeItem(LAST_SAVE_KEY);
-    var idx = JSON.parse(localStorage.getItem('pokeca_index') || '[]');
-    localStorage.setItem('pokeca_index', JSON.stringify(idx.filter(function(e){ return e.key !== LAST_SAVE_KEY; })));
+    gasCall({action:'pokecaDelete', key:LAST_SAVE_KEY}, null);
   }
   LAST_SAVE_KEY = key;
-  restoreState(JSON.parse(raw));
   document.getElementById('saveListPanel').style.display = 'none';
-  updateSaveCount();
+  gasCall({action:'pokecaLoad', key:key}, function(res) {
+    if (!res || res.status !== 'ok' || !res.data) { alert('保存データが見つかりません'); return; }
+    restoreState(res.data);
+    updateSaveCount();
+  });
 }
 
 function deleteSave(key) {
   if (!confirm('このカードの保存データを削除しますか？')) return;
-  localStorage.removeItem(key);
-  var index = JSON.parse(localStorage.getItem('pokeca_index') || '[]');
-  localStorage.setItem('pokeca_index', JSON.stringify(index.filter(function(e){ return e.key !== key; })));
-  updateSaveCount();
-  renderSaveList();
+  gasCall({action:'pokecaDelete', key:key}, function() {
+    if (LAST_SAVE_KEY === key) LAST_SAVE_KEY = null;
+    updateSaveCount();
+    renderSaveList();
+  });
 }
 
 function restoreState(st) {
