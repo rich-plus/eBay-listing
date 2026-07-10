@@ -887,7 +887,7 @@ function sendToSheets() {
       statusEl.style.color  = 'var(--green)';
       // 現在の保存エントリに記録済みフラグを付ける
       var currentKey = LAST_SAVE_KEY || getSaveKey();
-      gasCall({action:'pokecaSetRecorded', key:currentKey}, null);
+      gasCallPost({action:'pokecaSetRecorded', key:currentKey}, null);
     } else {
       statusEl.textContent  = '❌ GASエラー: ' + (res && res.msg ? res.msg : '不明なエラー');
       statusEl.style.color  = 'var(--red)';
@@ -1177,6 +1177,21 @@ function gasCall(params, callback) {
   document.head.appendChild(s);
 }
 
+function gasCallPost(data, callback) {
+  var url = localStorage.getItem('gsheet_script_url') || '';
+  if (!url) { if (callback) callback({status:'error'}); return; }
+  fetch(url, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: {'Content-Type': 'text/plain'},
+    body: JSON.stringify(data)
+  }).then(function() {
+    if (callback) callback({status:'ok'});
+  }).catch(function() {
+    if (callback) callback({status:'error'});
+  });
+}
+
 function scheduleAutoSave() {
   clearTimeout(autoSaveTimer);
   autoSaveTimer = setTimeout(autoSave, 700);
@@ -1226,7 +1241,7 @@ function autoSave() {
   var newKey = getSaveKey();
 
   if (LAST_SAVE_KEY && newKey !== LAST_SAVE_KEY) {
-    gasCall({action:'pokecaDelete', key:LAST_SAVE_KEY}, null);
+    gasCallPost({action:'pokecaDelete', key:LAST_SAVE_KEY}, null);
   }
   LAST_SAVE_KEY = newKey;
 
@@ -1239,10 +1254,7 @@ function autoSave() {
     platform:      state.platform === 'その他' ? (state.platformOther || 'その他') : state.platform,
     listingDate:   state.listingDate
   };
-  gasCall({
-    action: 'pokecaSave',
-    payload: JSON.stringify({key:newKey, label:JSON.stringify(meta), ts:new Date().toISOString(), recorded:false, data:state})
-  }, function(res) {
+  gasCallPost({action:'pokecaSave', key:newKey, label:JSON.stringify(meta), ts:new Date().toISOString(), recorded:false, data:state}, function(res) {
     if (res && res.status === 'ok') {
       updateSaveCount();
       var panel = document.getElementById('saveListPanel');
@@ -1287,7 +1299,7 @@ function renderSaveList() {
     clearBtn.style.cssText = 'font-size:11px;padding:3px 10px;border:1px solid #f0a0a0;background:#fff5f5;color:#c00;border-radius:6px;cursor:pointer;font-family:inherit;';
     clearBtn.onclick = function() {
       if (!confirm('保存済みリストをすべて削除しますか？\n（元に戻せません）')) return;
-      gasCall({action:'pokecaClear'}, function() {
+      gasCallPost({action:'pokecaClear'}, function() {
         LAST_SAVE_KEY = null;
         updateSaveCount();
         renderSaveList();
@@ -1346,7 +1358,7 @@ function renderSaveList() {
 function loadSave(key) {
   if (!confirm('現在の入力内容を上書きして読み込みますか？')) return;
   if (LAST_SAVE_KEY && LAST_SAVE_KEY !== key && /^pokeca_draft_/.test(LAST_SAVE_KEY)) {
-    gasCall({action:'pokecaDelete', key:LAST_SAVE_KEY}, null);
+    gasCallPost({action:'pokecaDelete', key:LAST_SAVE_KEY}, null);
   }
   LAST_SAVE_KEY = key;
   document.getElementById('saveListPanel').style.display = 'none';
@@ -1359,7 +1371,7 @@ function loadSave(key) {
 
 function deleteSave(key) {
   if (!confirm('このカードの保存データを削除しますか？')) return;
-  gasCall({action:'pokecaDelete', key:key}, function() {
+  gasCallPost({action:'pokecaDelete', key:key}, function() {
     if (LAST_SAVE_KEY === key) LAST_SAVE_KEY = null;
     updateSaveCount();
     renderSaveList();
