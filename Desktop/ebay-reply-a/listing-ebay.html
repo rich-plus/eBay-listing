@@ -278,6 +278,18 @@
       border-radius: 6px; cursor: pointer; transition: all .15s;
     }
     .btn-save-del:hover { background: #fff3f0; transform: none; }
+    .save-month-hd {
+      display: flex; align-items: center; gap: 8px;
+      padding: 5px 6px; margin-top: 8px; margin-bottom: 5px;
+      cursor: pointer; user-select: none; border-radius: 6px;
+      color: var(--blue); font-size: 12px; font-weight: bold;
+      border-bottom: 1.5px solid var(--blue-lt);
+    }
+    .save-month-hd:hover { background: var(--blue-lt); }
+    .save-month-arrow { font-size: 10px; width: 12px; text-align: center; flex-shrink: 0; }
+    .save-month-label { flex: 1; }
+    .save-month-count { font-size: 11px; color: #888; font-weight: normal; }
+    .save-month-items { padding-left: 4px; }
     .save-auto-indicator {
       font-size: 10px; color: #aaa; margin-left: 6px; font-weight: normal;
     }
@@ -1332,49 +1344,91 @@ function renderSaveList() {
     clearWrap.appendChild(clearBtn);
     con.appendChild(clearWrap);
     var safe = function(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+    var makeItemEl = function(e) {
+      var meta;
+      try { meta = JSON.parse(e.label); } catch(err) { meta = {productName: e.label}; }
+      var div = document.createElement('div');
+      div.className = 'save-item' + (e.recorded ? ' recorded' : '');
+      var nameDiv = document.createElement('div');
+      nameDiv.className = 'save-item-name';
+      nameDiv.textContent = meta.productName || '（名称未設定）';
+      if (e.recorded) {
+        var badge = document.createElement('span');
+        badge.className = 'save-recorded-badge';
+        badge.textContent = '✅ 記録済み';
+        nameDiv.appendChild(badge);
+      }
+      var metaDiv = document.createElement('div');
+      metaDiv.className = 'save-item-meta';
+      var infoParts = [];
+      if (meta.sku)           infoParts.push('SKU: <b>' + safe(meta.sku) + '</b>');
+      if (meta.purchaseDate)  infoParts.push('仕入れ日: ' + safe(meta.purchaseDate));
+      if (meta.purchasePrice) infoParts.push('仕入れ金額: ¥' + safe(meta.purchasePrice));
+      if (meta.platform)      infoParts.push('購入先: ' + safe(meta.platform));
+      if (meta.listingDate)   infoParts.push('出品日: ' + safe(meta.listingDate));
+      metaDiv.innerHTML = (infoParts.length ? infoParts.join(' &nbsp;|&nbsp; ') + '<br>' : '')
+        + '<small style="color:#aaa">保存: ' + safe(meta.savedAt || e.ts || '') + '</small>';
+      var btnsDiv = document.createElement('div');
+      btnsDiv.className = 'save-item-btns';
+      var loadBtn = document.createElement('button');
+      loadBtn.className = 'btn-save-load';
+      loadBtn.innerHTML = '&#128194; 読み込む';
+      loadBtn.onclick = (function(k){ return function(){ loadSave(k); }; })(e.key);
+      var delBtn = document.createElement('button');
+      delBtn.className = 'btn-save-del';
+      delBtn.innerHTML = '&#128465; 削除';
+      delBtn.onclick = (function(k){ return function(){ deleteSave(k); }; })(e.key);
+      btnsDiv.appendChild(loadBtn);
+      btnsDiv.appendChild(delBtn);
+      div.appendChild(nameDiv);
+      div.appendChild(metaDiv);
+      div.appendChild(btnsDiv);
+      return div;
+    };
+
+    // 月別グループ化
+    var now = new Date();
+    var thisMonth = now.getFullYear() + '年' + (now.getMonth()+1) + '月';
+    var groups = {}, groupOrder = [];
     index.forEach(function(e) {
       if (!e || !e.key) return;
-      try {
-        var meta;
-        try { meta = JSON.parse(e.label); } catch(err) { meta = {productName: e.label}; }
-        var div = document.createElement('div');
-        div.className = 'save-item' + (e.recorded ? ' recorded' : '');
-        var nameDiv = document.createElement('div');
-        nameDiv.className = 'save-item-name';
-        nameDiv.textContent = meta.productName || '（名称未設定）';
-        if (e.recorded) {
-          var badge = document.createElement('span');
-          badge.className = 'save-recorded-badge';
-          badge.textContent = '✅ 記録済み';
-          nameDiv.appendChild(badge);
-        }
-        var metaDiv = document.createElement('div');
-        metaDiv.className = 'save-item-meta';
-        var infoParts = [];
-        if (meta.sku)           infoParts.push('SKU: <b>' + safe(meta.sku) + '</b>');
-        if (meta.purchaseDate)  infoParts.push('仕入れ日: ' + safe(meta.purchaseDate));
-        if (meta.purchasePrice) infoParts.push('仕入れ金額: ¥' + safe(meta.purchasePrice));
-        if (meta.platform)      infoParts.push('購入先: ' + safe(meta.platform));
-        if (meta.listingDate)   infoParts.push('出品日: ' + safe(meta.listingDate));
-        metaDiv.innerHTML = (infoParts.length ? infoParts.join(' &nbsp;|&nbsp; ') + '<br>' : '')
-          + '<small style="color:#aaa">保存: ' + safe(meta.savedAt || e.ts || '') + '</small>';
-        var btnsDiv = document.createElement('div');
-        btnsDiv.className = 'save-item-btns';
-        var loadBtn = document.createElement('button');
-        loadBtn.className = 'btn-save-load';
-        loadBtn.innerHTML = '&#128194; 読み込む';
-        loadBtn.onclick = (function(k){ return function(){ loadSave(k); }; })(e.key);
-        var delBtn = document.createElement('button');
-        delBtn.className = 'btn-save-del';
-        delBtn.innerHTML = '&#128465; 削除';
-        delBtn.onclick = (function(k){ return function(){ deleteSave(k); }; })(e.key);
-        btnsDiv.appendChild(loadBtn);
-        btnsDiv.appendChild(delBtn);
-        div.appendChild(nameDiv);
-        div.appendChild(metaDiv);
-        div.appendChild(btnsDiv);
-        con.appendChild(div);
-      } catch(err) {}
+      var label = '日付不明';
+      if (e.ts) { var d = new Date(e.ts); if (!isNaN(d)) label = d.getFullYear() + '年' + (d.getMonth()+1) + '月'; }
+      if (!groups[label]) { groups[label] = []; groupOrder.push(label); }
+      groups[label].push(e);
+    });
+    groupOrder.sort(function(a, b) {
+      if (a === '日付不明') return 1; if (b === '日付不明') return -1;
+      var pa = a.match(/(\d+)年(\d+)月/), pb = b.match(/(\d+)年(\d+)月/);
+      if (!pa || !pb) return 0;
+      return (parseInt(pb[1])*100+parseInt(pb[2])) - (parseInt(pa[1])*100+parseInt(pa[2]));
+    });
+    groupOrder.forEach(function(month) {
+      var items = groups[month];
+      var open = (month === thisMonth);
+      var hd = document.createElement('div');
+      hd.className = 'save-month-hd';
+      var arrow = document.createElement('span');
+      arrow.className = 'save-month-arrow';
+      arrow.textContent = open ? '▼' : '▶';
+      var lbl = document.createElement('span');
+      lbl.className = 'save-month-label';
+      lbl.textContent = '📁 ' + month;
+      var cnt = document.createElement('span');
+      cnt.className = 'save-month-count';
+      cnt.textContent = items.length + '件';
+      hd.appendChild(arrow); hd.appendChild(lbl); hd.appendChild(cnt);
+      var wrap = document.createElement('div');
+      wrap.className = 'save-month-items';
+      wrap.style.display = open ? 'block' : 'none';
+      items.forEach(function(e) { try { wrap.appendChild(makeItemEl(e)); } catch(err) {} });
+      hd.onclick = function() {
+        var isOpen = wrap.style.display !== 'none';
+        wrap.style.display = isOpen ? 'none' : 'block';
+        arrow.textContent = isOpen ? '▶' : '▼';
+      };
+      con.appendChild(hd);
+      con.appendChild(wrap);
     });
   });
 }
