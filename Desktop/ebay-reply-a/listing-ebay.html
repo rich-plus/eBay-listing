@@ -348,6 +348,30 @@
       border: none; cursor: pointer; transition: all .15s;
     }
     .btn-copy-all-specs:hover { background: var(--blue-dk); }
+
+    /* ── Mobile ── */
+    @media(max-width:640px) {
+      header { padding: 14px 12px 12px; }
+      header h1 { font-size: 1.1em; }
+      .container { padding: 12px 10px 40px; }
+      .card { padding: 14px 12px 16px; }
+      .memo-card { padding: 12px 12px 14px; }
+      .memo-hd { flex-wrap: wrap; gap: 6px; }
+      .memo-hd .btn-new-tab { order: 1; }
+      .memo-hd .memo-list-btn { order: 2; }
+      .memo-hd .memo-send-btn { order: 3; width: 100%; text-align: center; }
+      .api-row { flex-wrap: wrap; }
+      .api-bar label { white-space: normal; }
+      .spec-item { flex-wrap: wrap; }
+      .spec-name { min-width: unset; width: 100%; margin-bottom: 3px; padding-top: 0; }
+      .save-item-btns { gap: 8px; }
+      .btn-save-load, .btn-save-del { padding: 8px 16px; font-size: 12px; }
+      .tpl-out { height: 200px; }
+      .word-btn { padding: 6px 14px; font-size: 13px; }
+      button { min-height: 36px; }
+      .btn-sku-copy { min-height: unset; }
+      .btn-close-list { min-height: unset; }
+    }
   </style>
 </head>
 <body>
@@ -1356,7 +1380,6 @@ function renderSaveList() {
 }
 
 function loadSave(key) {
-  if (!confirm('現在の入力内容を上書きして読み込みますか？')) return;
   if (LAST_SAVE_KEY && LAST_SAVE_KEY !== key && /^pokeca_draft_/.test(LAST_SAVE_KEY)) {
     gasCallPost({action:'pokecaDelete', key:LAST_SAVE_KEY}, null);
   }
@@ -1366,6 +1389,7 @@ function loadSave(key) {
     if (!res || res.status !== 'ok' || !res.data) { alert('保存データが見つかりません'); return; }
     restoreState(res.data);
     updateSaveCount();
+    window.scrollTo(0, 0);
   });
 }
 
