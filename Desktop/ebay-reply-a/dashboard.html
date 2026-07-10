@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>eBay 販売ダッシュボード</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --bg: #f0f2f9;
+      --card-bg: #fff;
+      --border: #d1d9ee;
+      --text: #1a1a2e;
+      --blue: #1a3a8c;
+      --blue-lt: #e8edf8;
+      --yellow: #f5c400;
+
+      /* 4-family color system */
+      --hg-green: #166534;  /* revenue group header */
+      --hc-green: #15803d;  /* revenue col header */
+      --hg-crim:  #7f1d1d;  /* cost group header */
+      --hc-crim:  #991b1b;  /* cost col header */
+      --hg-slate: #1e293b;  /* neutral group header */
+      --hc-slate: #334155;  /* neutral col header */
+      --hg-amber: #78350f;  /* refund group header */
+      --hc-amber: #92400e;  /* refund col header */
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI','Meiryo',sans-serif; background: var(--bg); color: var(--text); }
+
+    /* ── Header ── */
+    header {
+      background: linear-gradient(135deg,#0d2460,#1a3a8c);
+      color: var(--yellow); text-align: center; padding: 16px; border-bottom: 4px solid var(--yellow);
+      position: sticky; top: 0; z-index: 200;
+    }
+    header h1 { font-size: 1.35em; letter-spacing: 1px; }
+    header p  { font-size: 11px; color: #ffeaa0; margin-top: 3px; }
+    .container { max-width: 1280px; margin: 0 auto; padding: 14px 12px 60px; }
+
+    /* ── Card ── */
+    .card {
+      background: var(--card-bg); border-radius: 12px; padding: 16px 18px 18px;
+      margin-bottom: 14px; border: 1px solid var(--border);
+      box-shadow: 0 1px 6px rgba(0,0,0,.06);
+    }
+    .card-hd { display:flex; align-items:center; gap:8px; margin-bottom:12px; padding-bottom:9px; border-bottom:2px solid var(--yellow); }
+    .card-hd h2 { font-size:.9em; color:var(--blue); font-weight:700; }
+
+    /* ── URL ── */
+    .url-row { display:flex; gap:8px; }
+    .url-row input { flex:1; padding:8px 10px; border:1.5px solid var(--border); border-radius:8px; font-size:13px; }
+    #status { font-size:12px; color:#666; margin-top:6px; min-height:16px; }
+
+    /* ── CSV Import ── */
+    .import-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:10px; }
+    .import-box  { background:var(--blue-lt); border-radius:8px; padding:12px 14px; border:1px solid var(--border); }
+    .import-box label { display:block; font-size:12px; font-weight:700; color:var(--blue); margin-bottom:5px; }
+    .import-box .hint { font-size:11px; color:#667; margin-bottom:6px; }
+    .import-row { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+    .import-row input[type=file] { font-size:11px; flex:1; min-width:0; }
+    .import-status { font-size:11px; margin-top:4px; min-height:14px; }
+    .imp-ok { color:#16a34a; font-weight:600; }
+    .imp-err { color:#dc2626; font-weight:600; }
+
+    /* ── KPI ── */
+    .kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(125px,1fr)); gap:8px; margin-bottom:14px; }
+    .kpi { background:var(--card-bg); border-radius:8px; padding:11px 8px; border:1px solid var(--border); text-align:center; box-shadow:0 1px 4px rgba(0,0,0,.04); }
+    .kpi-label { font-size:10px; color:#888; margin-bottom:3px; }
+    .kpi-value { font-size:1.1em; font-weight:700; color:var(--blue); }
+    .kpi-value.green { color:#16a34a; }
+    .kpi-value.red   { color:#dc2626; }
+    .kpi-value.gold  { color:#b45309; }
+    .kpi-value.purple{ color:#7c3aed; }
+
+    /* ── Charts ── */
+    .chart-grid { display:grid; grid-template-columns:2fr 1fr; gap:14px; }
+    @media(max-width:640px){ .chart-grid{ grid-template-columns:1fr; } }
+    .chart-box { position:relative; height:240px; }
+
+    /* ── Buttons ── */
+    .btn { display:inline-flex; align-items:center; gap:5px; padding:8px 16px; border-radius:8px; border:none; font-size:12px; font-weight:700; cursor:pointer; transition:opacity .15s; }
+    .btn-blue  { background:var(--blue); color:#fff; }
+    .btn-green { background:#16a34a; color:#fff; }
+    .btn-sm    { padding:5px 12px; font-size:11px; }
+    .btn:hover { opacity:.82; }
+    .ctrl-row  { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+
+    /* ── Year tabs ── */
+    .year-tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
+    .year-tab { padding:3px 12px; border-radius:16px; border:1.5px solid var(--border); font-size:11px; cursor:pointer; background:#fff; color:var(--blue); }
+    .year-tab.active { background:var(--blue); color:#fff; border-color:var(--blue); }
+
+    /* ── Table ── */
+    .tbl-wrap { overflow-x:auto; border-radius:8px; border:1px solid var(--border); }
+    table { width:100%; border-collapse:collapse; font-size:12px; white-space:nowrap; }
+
+    /* グループ行 */
+    thead tr.grp-row th {
+      font-size:10px; font-weight:700; letter-spacing:.6px; text-transform:uppercase;
+      padding:5px 10px; text-align:center; color:#fff;
+    }
+    .grp-base   { background:var(--hg-slate); }
+    .grp-rev    { background:var(--hg-green); }
+    .grp-cost   { background:var(--hg-crim);  }
+    .grp-recv   { background:var(--hg-green); }
+    .grp-logis  { background:var(--hg-crim);  }
+    .grp-profit { background:var(--hg-slate); }
+    .grp-refund { background:var(--hg-amber); }
+
+    /* 列ヘッダー行 */
+    thead tr:not(.grp-row) th {
+      padding:7px 10px; text-align:right; font-size:11px; color:#fff; font-weight:600;
+      border-top:1px solid rgba(255,255,255,.2);
+    }
+    thead tr:not(.grp-row) th.center { text-align:center; }
+    th.th-base   { background:var(--hc-slate); }
+    th.th-sales  { background:var(--hc-green); }
+    th.th-fee    { background:var(--hc-crim);  }
+    th.th-ad     { background:var(--hc-crim);  }
+    th.th-misc   { background:var(--hc-crim);  }
+    th.th-cost   { background:var(--hc-crim);  }
+    th.th-recv   { background:var(--hc-green); }
+    th.th-logis  { background:var(--hc-crim);  }
+    th.th-profit { background:var(--hc-slate); }
+    th.th-refund { background:var(--hc-amber); }
+
+    /* グループ区切り */
+    .grp-divider { border-left:3px solid rgba(255,255,255,.4) !important; }
+
+    /* データ行 */
+    td { padding:6px 10px; text-align:right; border-bottom:1px solid #eaeef8; vertical-align:middle; }
+    td.center { text-align:center; }
+    tr:nth-child(even) td { background:#f8f9fd; }
+    tr:hover td { background:#eef2ff !important; }
+    tfoot tr td { background:#e2e8f0 !important; font-weight:700; border-top:2px solid var(--border); }
+
+    /* 還付列 */
+    td.rc { background:rgba(180,83,9,.05) !important; }
+    tr:hover td.rc { background:#fef3c7 !important; }
+    tfoot td.rc { background:#fde68a !important; }
+
+    /* 損益 */
+    .p-pos { color:#16a34a; font-weight:700; }
+    .p-neg { color:#dc2626; font-weight:700; }
+    .null-cell { color:#c0c8d8; font-size:11px; }
+
+    /* 月リンク */
+    .month-link { cursor:pointer; color:var(--blue); font-weight:700; text-decoration:underline dotted 1.5px; }
+    .month-link:hover { background:var(--yellow); border-radius:3px; padding:0 3px; }
+
+    /* 二段表示 */
+    .cell-jpy { font-weight:600; line-height:1.4; }
+    .cell-usd { font-size:10px; color:#8fa3c8; line-height:1.2; }
+
+    /* ── Modal ── */
+    .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:500; overflow-y:auto; }
+    .modal-overlay.open { display:flex; align-items:flex-start; justify-content:center; padding:28px 10px; }
+    .modal-box { background:#fff; border-radius:14px; width:100%; max-width:820px; box-shadow:0 8px 40px rgba(0,0,0,.3); }
+    .modal-hd { background:linear-gradient(135deg,#0d2460,#1a3a8c); color:var(--yellow); padding:14px 18px; border-radius:12px 12px 0 0; display:flex; justify-content:space-between; align-items:center; }
+    .modal-hd h3 { font-size:.95em; }
+    .modal-close { background:none; border:none; color:var(--yellow); font-size:1.5em; cursor:pointer; line-height:1; }
+    .modal-body { padding:14px 16px 18px; max-height:80vh; overflow-y:auto; }
+
+    /* ── Detail cards ── */
+    .dc-list { display:flex; flex-direction:column; gap:8px; }
+    .dc-card { border:1px solid var(--border); border-radius:9px; overflow:hidden; }
+
+    .dc-head {
+      background:linear-gradient(135deg,#0d2460,#1a3a8c);
+      padding:9px 14px; display:flex; flex-wrap:wrap; align-items:center; gap:8px;
+    }
+    .dc-head-left { display:flex; flex-direction:column; gap:2px; flex:1; min-width:0; }
+    .dc-sku  { font-weight:700; font-size:13px; color:#fff; }
+    .dc-prod { font-size:11px; color:#b8c8e8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:300px; }
+    .dc-date { font-size:11px; color:#fff; background:rgba(255,255,255,.15); padding:2px 7px; border-radius:10px; white-space:nowrap; }
+    .dc-tracking { font-size:11px; color:var(--yellow); font-family:monospace; margin-left:auto; }
+
+    .dc-main {
+      padding:10px 14px; display:flex; gap:0; background:#f8faff;
+      border-bottom:1px solid #e8edf8;
+    }
+    .dc-stat {
+      display:flex; flex-direction:column; gap:2px; padding:4px 16px 4px 0;
+      border-right:1px solid #e0e8f0; margin-right:16px;
+    }
+    .dc-stat:last-child { border-right:none; margin-right:0; }
+    .dc-stat-lbl { font-size:10px; color:#90a0b8; }
+    .dc-stat-val { font-size:14px; font-weight:700; color:var(--text); }
+    .dc-stat-val.green { color:#15803d; }
+    .dc-stat-val.red   { color:#991b1b; }
+    .dc-stat-val.amber { color:#92400e; }
+
+    .dc-expand-btn {
+      width:100%; padding:5px; background:none; border:none;
+      cursor:pointer; font-size:11px; color:#64748b; text-align:center; transition:background .1s;
+    }
+    .dc-expand-btn:hover { background:#f1f5f9; }
+
+    .dc-detail { background:#fafbff; padding:8px 14px 10px; }
+    .dc-detail-tbl { width:100%; border-collapse:collapse; font-size:11px; }
+    .dc-dt-k { color:#94a3b8; padding:2px 10px 2px 0; width:120px; }
+    .dc-dt-v { font-weight:600; padding:2px 0; color:var(--text); }
+  </style>
+</head>
+<body>
+<header>
+  <h1>eBay 販売ダッシュボード</h1>
+  <p>月次集計 · 送料管理 · MF記帳補助</p>
+</header>
+<div class="container">
+
+  <!-- URL -->
+  <div class="card">
+    <div class="card-hd"><h2>GAS URL 設定</h2></div>
+    <div class="url-row">
+      <input type="text" id="gasUrl" placeholder="https://script.google.com/macros/s/...">
+      <button class="btn btn-blue" onclick="loadData()">読み込む</button>
+    </div>
+    <div id="status"></div>
+  </div>
+
+  <!-- CSV Import -->
+  <div class="card">
+    <div class="card-hd"><h2>送料・関税 取り込み</h2></div>
+    <p style="font-size:11px;color:#888;margin-bottom:10px;">CSV / XLSX 両対応 ｜ 処理順：① OC送料 → ② OC関税 → ③ MF送料</p>
+    <div class="import-grid">
+      <div class="import-box">
+        <label>① OC 送料（SpeedPAK → Q列）</label>
+        <div class="hint">D列=追跡番号 / H列=金額 を合算</div>
+        <div class="import-row">
+          <input type="file" id="ocShipFile" accept=".csv,.tsv,.txt,.xlsx,.xls">
+          <button class="btn btn-blue btn-sm" onclick="processOCShipping()">取込</button>
+        </div>
+        <div class="import-status" id="ocShipSt"></div>
+      </div>
+      <div class="import-box">
+        <label>② OC 関税（→ R列）</label>
+        <div class="hint">D列=追跡番号 / I列=小計(円) を合算</div>
+        <div class="import-row">
+          <input type="file" id="ocCustFile" accept=".csv,.tsv,.txt,.xlsx,.xls">
+          <button class="btn btn-blue btn-sm" onclick="processOCCustoms()">取込</button>
+        </div>
+        <div class="import-status" id="ocCustSt"></div>
+      </div>
+      <div class="import-box">
+        <label>③ MF 送料仕訳帳（→ Q列）</label>
+        <div class="hint">相手方：日本郵便 の行を借方摘要の追跡番号でX列と照合</div>
+        <div class="import-row">
+          <input type="file" id="mfShipFile" accept=".csv,.tsv,.txt,.xlsx,.xls">
+          <button class="btn btn-blue btn-sm" onclick="processMFShipping()">取込</button>
+        </div>
+        <div class="import-status" id="mfShipSt"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI -->
+  <div id="kpiSection" style="display:none">
+    <div class="kpi-grid" id="kpiGrid"></div>
+  </div>
+
+  <!-- Charts -->
+  <div class="card" id="chartSection" style="display:none">
+    <div class="card-hd"><h2>月次推移グラフ</h2></div>
+    <div class="chart-grid">
+      <div class="chart-box"><canvas id="salesChart"></canvas></div>
+      <div class="chart-box"><canvas id="costChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Monthly Table -->
+  <div class="card" id="tableSection" style="display:none">
+    <div class="card-hd">
+      <h2>月次サマリー</h2>
+      <span style="font-size:11px;color:#94a3b8;font-weight:normal;margin-left:4px">月名クリックで明細</span>
+    </div>
+    <div class="ctrl-row">
+      <button class="btn btn-green" onclick="downloadCSV()">CSV ダウンロード</button>
+      <select id="mfMonthSel" style="padding:6px 8px;border-radius:8px;border:1.5px solid var(--border);font-size:12px;color:var(--text);">
+        <option value="">全期間</option>
+      </select>
+      <button class="btn btn-blue" onclick="downloadMFCSV()">MF出力</button>
+    </div>
+    <div class="year-tabs" id="yearTabs"></div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr class="grp-row">
+            <th class="grp-base"   colspan="2">基本</th>
+            <th class="grp-rev  grp-divider" colspan="1">収益</th>
+            <th class="grp-cost grp-divider" colspan="3">コスト <small style="opacity:.75;font-weight:400">上:円 / 下:$</small></th>
+            <th class="grp-recv grp-divider" colspan="1">受取</th>
+            <th class="grp-cost grp-divider" colspan="1">仕入</th>
+            <th class="grp-logis grp-divider" colspan="2">物流</th>
+            <th class="grp-profit grp-divider" colspan="2">損益</th>
+            <th class="grp-refund grp-divider" colspan="3">消費税還付</th>
+          </tr>
+          <tr>
+            <th class="center th-base">月</th>
+            <th class="center th-base">件数</th>
+            <th class="th-sales grp-divider">売上<br><span style="font-size:9px;opacity:.7">円 / $</span></th>
+            <th class="th-fee   grp-divider">販売手数料<br><span style="font-size:9px;opacity:.7">円 / $</span></th>
+            <th class="th-ad">広告費<br><span style="font-size:9px;opacity:.7">円 / $</span></th>
+            <th class="th-misc">雑費</th>
+            <th class="th-recv  grp-divider">受取金額<br><span style="font-size:9px;opacity:.7">円 / $</span></th>
+            <th class="th-cost  grp-divider">仕入金額</th>
+            <th class="th-logis grp-divider">送料</th>
+            <th class="th-logis">関税</th>
+            <th class="th-profit grp-divider">純利益</th>
+            <th class="th-profit">利益率</th>
+            <th class="th-refund grp-divider">消費税還付</th>
+            <th class="th-refund">利益(還付込)</th>
+            <th class="th-refund">利益率(還付込)</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+        <tfoot id="tableFoot"></tfoot>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+  <!-- Domestic Sales -->
+  <div class="card">
+    <div class="card-hd" style="justify-content:space-between">
+      <h2>国内販売 月次サマリー</h2>
+      <button class="btn btn-blue btn-sm" onclick="loadDomesticData()">読み込む</button>
+    </div>
+    <div id="domContent">
+      <p style="font-size:12px;color:#94a3b8;padding:4px 0">「読み込む」を押してください</p>
+    </div>
+  </div>
+
+</div>
+
+<!-- Detail Modal -->
+<div class="modal-overlay" id="detailModal" onclick="closeModal(event)">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-hd">
+      <h3 id="modalTitle">取引明細</h3>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="modalContent"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+var allData   = [];
+var salesChart, costChart;
+var activeYear = 'all';
+
+// ─── 初期化 ───────────────────────────────────────────
+window.onload = function() {
+  // GAS配信時はURL入力不要で自動読み込み
+  if (window.__GAS_URL__) {
+    loadData();
+    return;
+  }
+  var saved = localStorage.getItem('gas_dashboard_url')
+           || localStorage.getItem('gsheet_script_url') || '';
+  document.getElementById('gasUrl').value = saved;
+};
+function getGasUrl() {
+  // GAS配信時は自動注入されたURLを優先
+  if (window.__GAS_URL__) return window.__GAS_URL__;
+  return localStorage.getItem('gas_dashboard_url') || document.getElementById('gasUrl').value.trim();
+}
+
+// ─── データ読み込み ────────────────────────────────────
+function loadData() {
+  var url = window.__GAS_URL__ || document.getElementById('gasUrl').value.trim();
+  if (!url || !url.startsWith('https://')) { setStatus('GAS URLを入力してください'); return; }
+  if (!window.__GAS_URL__) localStorage.setItem('gas_dashboard_url', url);
+  setStatus('読み込み中...');
+  gasRead('monthly', {}, function(data) {
+    if (data.status !== 'ok') { setStatus('エラー: ' + (data.msg||'不明')); return; }
+    allData = data.monthly || [];
+    if (!allData.length) { setStatus('データがありません'); return; }
+    setStatus('');
+    buildYearTabs();
+    buildMFMonthSelect();
+    renderAll();
+    ['kpiSection','chartSection','tableSection'].forEach(function(id){
+      document.getElementById(id).style.display = '';
+    });
+  });
+}
+
+// ─── JSONP ────────────────────────────────────────────
+function gasRead(action, params, callback) {
+  var url = getGasUrl(); if (!url) return;
+  var cbName = 'gasCb_' + Date.now();
+  var script = document.createElement('script');
+  window[cbName] = function(data) {
+    delete window[cbName];
+    try { document.head.removeChild(script); } catch(e) {}
+    callback(data);
+  };
+  script.onerror = function() { callback({status:'error',msg:'通信エラー'}); };
+  var qs = '?callback=' + cbName + '&action=' + action;
+  Object.keys(params).forEach(function(k){ qs += '&' + k + '=' + encodeURIComponent(params[k]); });
+  script.src = url + qs;
+  document.head.appendChild(script);
+}
+function gasWrite(action, payload, statusId, successMsg) {
+  document.getElementById(statusId).textContent = '送信中...';
+  document.getElementById(statusId).className   = 'import-status';
+  gasRead(action, {payload: payload}, function(data) {
+    var el = document.getElementById(statusId);
+    if (data.status === 'ok') {
+      el.textContent  = successMsg + (data.written !== undefined ? ' ('+data.written+'件)' : '');
+      el.className    = 'import-status imp-ok';
+      loadData();
+    } else {
+      el.textContent = 'エラー: ' + (data.msg||'不明');
+      el.className   = 'import-status imp-err';
+    }
+  });
+}
+
+// ─── CSV パーサー（クォート対応）──────────────────────
+function parseSV(text) {
+  var t = text.replace(/^﻿/,'').replace(/\r\n/g,'\n').replace(/\r/g,'\n').trim();
+  var lines = t.split('\n');
+  var first = lines[0] || '';
+  var isTab = first.split('\t').length > first.split(',').length;
+  if (isTab) return lines.map(function(l){ return l.split('\t'); });
+  return lines.map(function(line) {
+    var fields=[], f='', inQ=false;
+    for (var i=0; i<line.length; i++) {
+      var c = line[i];
+      if (c==='"') { if(inQ && line[i+1]==='"'){f+='"';i++;} else {inQ=!inQ;} }
+      else if (c===',' && !inQ) { fields.push(f); f=''; }
+      else { f+=c; }
+    }
+    fields.push(f);
+    return fields;
+  });
+}
+
+// ─── OC 送料 → Q列 ────────────────────────────────────
+function processOCShipping() {
+  var file = document.getElementById('ocShipFile').files[0];
+  if (!file) { setImpSt('ocShipSt','ファイルを選択してください','err'); return; }
+  readFileAsRows(file, function(rows) {
+    rows = rows.slice(1);
+    var map = {};
+    rows.forEach(function(r) {
+      var t = String(r[3]||'').trim(), a = parseNum(r[7]);
+      if (!t||!a) return;
+      map[t] = (map[t]||0) + a;
+    });
+    var cnt = Object.keys(map).length;
+    if (!cnt) { setImpSt('ocShipSt','データが見つかりません','err'); return; }
+    setImpSt('ocShipSt', cnt+'件 解析中...', '');
+    gasWrite('writeShipping', JSON.stringify(map), 'ocShipSt', 'Q列に書込完了');
+  });
+}
+
+// ─── OC 関税 → R列 ────────────────────────────────────
+function processOCCustoms() {
+  var file = document.getElementById('ocCustFile').files[0];
+  if (!file) { setImpSt('ocCustSt','ファイルを選択してください','err'); return; }
+  readFileAsRows(file, function(rows) {
+    rows = rows.slice(1);
+    var map = {};
+    rows.forEach(function(r) {
+      var t = String(r[3]||'').trim(), a = parseNum(r[8]);
+      if (!t||!a) return;
+      map[t] = (map[t]||0) + a;
+    });
+    var cnt = Object.keys(map).length;
+    if (!cnt) { setImpSt('ocCustSt','データが見つかりません','err'); return; }
+    setImpSt('ocCustSt', cnt+'件 解析中...', '');
+    gasWrite('writeCustoms', JSON.stringify(map), 'ocCustSt', 'R列に書込完了');
+  });
+}
+
+// ─── MF 送料 → Q列 ────────────────────────────────────
+function processMFShipping() {
+  var file = document.getElementById('mfShipFile').files[0];
+  if (!file) { setImpSt('mfShipSt','ファイルを選択してください','err'); return; }
+  readFileAsRows(file, function(rows) {
+    var header = rows[0] || [];
+    rows = rows.slice(1);
+    var trackingMap = {}, debugRows = [];
+    rows.forEach(function(r) {
+      var memo   = String(r[16]||'').trim();  // 摘要（追跡番号）
+      var amount = parseNum(r[8]);             // 借方金額(円)
+      if (!amount || !memo) return;
+      var m = memo.match(/[A-Z]{2}\d{9}JP/i);
+      var tracking = m ? m[0].toUpperCase() : (/JP$/i.test(memo) ? memo : '');
+      if (!tracking) return;
+      debugRows.push('追跡=' + tracking + ' 金額=' + amount);
+      trackingMap[tracking] = (trackingMap[tracking] || 0) + amount;
+    });
+    var cnt = Object.keys(trackingMap).length;
+    if (!cnt) {
+      var msg = 'JP終わりの追跡番号付きの行が見つかりません';
+      if (debugRows.length) msg += '  ※確認:' + debugRows[0];
+      else msg += '  ※行数:' + rows.length + ' / ヘッダー:' + header.slice(0,5).join('|');
+      setImpSt('mfShipSt', msg, 'err'); return;
+    }
+    setImpSt('mfShipSt', cnt+'件 送信中...', '');
+    gasWrite('writeMFShipping',
+      JSON.stringify({trackingMap: trackingMap}),
+      'mfShipSt', 'Q列に書込完了');
+  });
+}
+
+// ─── ファイル読込（CSV Shift-JIS 自動判別）────────────
+function readFileAsRows(file, callback) {
+  var ext = file.name.split('.').pop().toLowerCase();
+  var reader = new FileReader();
+  if (ext==='xlsx' || ext==='xls') {
+    reader.onload = function(e) {
+      var wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
+      var ws = wb.Sheets[wb.SheetNames[0]];
+      callback(XLSX.utils.sheet_to_json(ws, {header:1, defval:''}));
+    };
+    reader.readAsArrayBuffer(file);
+  } else {
+    reader.onload = function(e) {
+      var buf = e.target.result, u8 = new Uint8Array(buf);
+      var enc = (u8[0]===0xEF && u8[1]===0xBB && u8[2]===0xBF) ? 'UTF-8' : 'Shift-JIS';
+      callback(parseSV(new TextDecoder(enc).decode(buf)));
+    };
+    reader.readAsArrayBuffer(file);
+  }
+}
+
+function parseNum(v) {
+  if (v===null||v===undefined||v==='') return 0;
+  if (typeof v==='number') return v;
+  return parseFloat(String(v).replace(/,/g,'')) || 0;
+}
+function setImpSt(id, msg, type) {
+  var el = document.getElementById(id);
+  el.textContent = msg;
+  el.className   = 'import-status'+(type==='ok'?' imp-ok':type==='err'?' imp-err':'');
+}
+
+// ─── 年タブ ────────────────────────────────────────────
+function buildYearTabs() {
+  var years = {};
+  allData.forEach(function(r){ years[r.month.substring(0,4)]=true; });
+  var html = '<div class="year-tab active" onclick="filterYear(\'all\',this)">全期間</div>';
+  Object.keys(years).sort().reverse().forEach(function(y){
+    html += '<div class="year-tab" onclick="filterYear(\''+y+'\',this)">'+y+'年</div>';
+  });
+  document.getElementById('yearTabs').innerHTML = html;
+}
+function filterYear(year, el) {
+  activeYear = year;
+  document.querySelectorAll('.year-tab').forEach(function(t){ t.classList.remove('active'); });
+  el.classList.add('active');
+  renderAll();
+}
+function filtered() {
+  return activeYear==='all' ? allData : allData.filter(function(r){ return r.month.startsWith(activeYear); });
+}
+
+// ─── 描画 ─────────────────────────────────────────────
+function renderAll() {
+  var data = filtered();
+  renderKPI(data);
+  renderTable(data);
+  renderCharts(data);
+}
+
+// ─── KPI ──────────────────────────────────────────────
+function renderKPI(data) {
+  var s=0,f=0,a=0,co=0,sh=0,cu=0,mi=0,rv=0,tr=0,pr=0,prr=0,cnt=0,hasO=false,hasTr=false;
+  data.forEach(function(r){
+    s+=r.salesJPY; f+=r.feeJPY; a+=r.adFeeJPY;
+    co+=(r.costJPY||0); sh+=r.shippingJPY; cu+=r.customsJPY;
+    pr+=r.profitJPY; cnt+=r.count;
+    if(r.miscJPY!==null){mi+=r.miscJPY;rv+=r.receivedJPY;hasO=true;}
+    if(r.taxRefundJPY!==null){tr+=r.taxRefundJPY;prr+=(r.profitWithRefundJPY||r.profitJPY);hasTr=true;}
+  });
+  var mg  = s>0 ? (pr/s*100).toFixed(1) : '0';
+  var mgr = s>0 ? (prr/s*100).toFixed(1) : '0';
+  var avg = cnt>0 ? Math.round(s/cnt) : 0;
+  var cards = [
+    kpi('累計売上',   yen(s),   ''),
+    kpi('販売手数料', yen(f),   'red'),
+    kpi('広告費',     yen(a),   'red'),
+    kpi('仕入金額',   yen(co),  'purple'),
+    kpi('送料',       yen(sh),  'red'),
+    kpi('関税',       yen(cu),  'red'),
+    kpi('純利益',     yen(pr),  pr>=0?'green':'red'),
+    kpi('利益率',     mg+'%',   pr>=0?'green':'red'),
+    kpi('総件数',     cnt+'件', ''),
+    kpi('平均単価',   yen(avg), '')
+  ];
+  if(hasO) cards.push(kpi('受取金額', yen(rv), 'green'));
+  if(hasTr) {
+    cards.push(kpi('消費税還付',     yen(tr),  'gold'));
+    cards.push(kpi('利益(還付込)',   yen(prr), prr>=0?'green':'red'));
+    cards.push(kpi('利益率(還付込)', mgr+'%',  prr>=0?'green':'red'));
+  }
+  document.getElementById('kpiGrid').innerHTML = cards.join('');
+}
+function kpi(label, value, cls) {
+  return '<div class="kpi"><div class="kpi-label">'+label+'</div>'
+       + '<div class="kpi-value '+cls+'">'+value+'</div></div>';
+}
+
+// ─── 月次テーブル ──────────────────────────────────────
+function renderTable(data) {
+  var bodyHtml = '';
+  var ts=0,tf=0,ta=0,tco=0,tsh=0,tcu=0,tmi=0,trv=0,ttr=0,tpr=0,tprr=0,tc=0;
+  var tsU=0,tfU=0,taU=0,trvU=0,hasO=false,hasTr=false;
+
+  data.forEach(function(r) {
+    ts +=r.salesJPY; tf +=r.feeJPY; ta +=r.adFeeJPY;
+    tco+=(r.costJPY||0); tsh+=r.shippingJPY; tcu+=r.customsJPY; tpr+=r.profitJPY; tc+=r.count;
+    tsU+=(r.salesUSD||0); tfU+=(r.feeUSD||0); taU+=(r.adFeeUSD||0);
+    if(r.miscJPY!==null){tmi+=r.miscJPY;trv+=r.receivedJPY;trvU+=(r.receivedUSD||0);hasO=true;}
+    if(r.taxRefundJPY!==null){ttr+=r.taxRefundJPY;tprr+=(r.profitWithRefundJPY||r.profitJPY);hasTr=true;}
+
+    var pc  = r.profitJPY >= 0 ? 'p-pos' : 'p-neg';
+    var pc2 = (r.profitWithRefundJPY||0) >= 0 ? 'p-pos' : 'p-neg';
+
+    bodyHtml += '<tr>'
+      + '<td class="center"><span class="month-link" onclick="showDetail(\''+r.month+'\')">'+r.month+'</span></td>'
+      + '<td class="center">'+r.count+'</td>'
+      + '<td>'+dualCell(r.salesJPY, r.salesUSD)+'</td>'
+      + '<td>'+dualCell(r.feeJPY,   r.feeUSD)+'</td>'
+      + '<td>'+dualCell(r.adFeeJPY, r.adFeeUSD)+'</td>'
+      + '<td>'+(r.miscJPY!==null?'<div class="cell-jpy">'+yen(r.miscJPY)+'</div>':'<span class="null-cell">—</span>')+'</td>'
+      + '<td>'+(r.receivedJPY!==null?dualCell(r.receivedJPY,r.receivedUSD):'<span class="null-cell">—</span>')+'</td>'
+      + '<td>'+yen(r.costJPY||0)+'</td>'
+      + '<td>'+yen(r.shippingJPY)+'</td>'
+      + '<td>'+yen(r.customsJPY)+'</td>'
+      + '<td class="'+pc+'">'+yen(r.profitJPY)+'</td>'
+      + '<td class="'+pc+'">'+r.marginPct+'%</td>'
+      + '<td class="rc">'+(r.taxRefundJPY!==null?yen(r.taxRefundJPY):'<span class="null-cell">—</span>')+'</td>'
+      + '<td class="rc '+(r.profitWithRefundJPY!==null?pc2:'')+'">'+(r.profitWithRefundJPY!==null?yen(r.profitWithRefundJPY):'<span class="null-cell">—</span>')+'</td>'
+      + '<td class="rc">'+(r.marginWithRefund!==null?r.marginWithRefund+'%':'<span class="null-cell">—</span>')+'</td>'
+      + '</tr>';
+  });
+  document.getElementById('tableBody').innerHTML = bodyHtml;
+
+  var fmg  = ts>0?(tpr/ts*100).toFixed(1):'0';
+  var fmgr = ts>0?(tprr/ts*100).toFixed(1):'0';
+  document.getElementById('tableFoot').innerHTML = '<tr>'
+    + '<td class="center">合計</td><td class="center">'+tc+'</td>'
+    + '<td>'+dualCell(ts, tsU>0?tsU:null)+'</td>'
+    + '<td>'+dualCell(tf, tfU>0?tfU:null)+'</td>'
+    + '<td>'+dualCell(ta, taU>0?taU:null)+'</td>'
+    + '<td>'+(hasO?yen(tmi):'—')+'</td>'
+    + '<td>'+(hasO?dualCell(trv,trvU>0?trvU:null):'—')+'</td>'
+    + '<td>'+yen(tco)+'</td>'
+    + '<td>'+yen(tsh)+'</td><td>'+yen(tcu)+'</td>'
+    + '<td class="'+(tpr>=0?'p-pos':'p-neg')+'">'+yen(tpr)+'</td>'
+    + '<td class="'+(tpr>=0?'p-pos':'p-neg')+'">'+fmg+'%</td>'
+    + '<td class="rc">'+(hasTr?yen(ttr):'—')+'</td>'
+    + '<td class="rc '+(hasTr?(tprr>=0?'p-pos':'p-neg'):'')+'">'+( hasTr?yen(tprr):'—')+'</td>'
+    + '<td class="rc">'+(hasTr?fmgr+'%':'—')+'</td>'
+    + '</tr>';
+}
+
+function dualCell(jpy, usd) {
+  var html = '<div class="cell-jpy">'+yen(jpy)+'</div>';
+  if (usd !== null && usd !== undefined)
+    html += '<div class="cell-usd">$'+parseFloat(usd).toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2})+'</div>';
+  return html;
+}
+
+// ─── グラフ ────────────────────────────────────────────
+function renderCharts(data) {
+  var rev    = data.slice().reverse();
+  var labels = rev.map(function(r){ return r.month; });
+  var sales  = rev.map(function(r){ return r.salesJPY; });
+  var profs  = rev.map(function(r){ return r.profitJPY; });
+  var profsr = rev.map(function(r){ return r.profitWithRefundJPY!==null?r.profitWithRefundJPY:null; });
+  var costs  = rev.map(function(r){ return r.feeJPY+r.adFeeJPY+(r.costJPY||0)+r.shippingJPY+r.customsJPY; });
+
+  if (salesChart) salesChart.destroy();
+  salesChart = new Chart(document.getElementById('salesChart'), {
+    type:'bar',
+    data:{ labels:labels, datasets:[
+      {label:'売上',         data:sales,  backgroundColor:'rgba(22,101,52,.6)',   order:2},
+      {label:'コスト計',     data:costs,  backgroundColor:'rgba(153,27,27,.5)',  order:2},
+      {label:'利益(還付込)', data:profsr, backgroundColor:'rgba(120,53,15,.45)', order:2},
+      {label:'純利益',    data:profs,  type:'line', borderColor:'#1d4ed8',
+       backgroundColor:'rgba(29,78,216,.08)', fill:true, tension:.3, pointRadius:3, borderWidth:2, order:1}
+    ]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{position:'top',labels:{font:{size:10},boxWidth:12}},
+               title:{display:true,text:'月次 売上・利益',font:{size:12}}},
+      scales:{y:{ticks:{callback:function(v){
+        return v>=10000?'¥'+(v/10000).toFixed(0)+'万':'¥'+v.toLocaleString();
+      }}}}
+    }
+  });
+
+  if (costChart) costChart.destroy();
+  var latest = data[0];
+  costChart = new Chart(document.getElementById('costChart'), {
+    type:'doughnut',
+    data:{
+      labels:['販売手数料','広告費','仕入金額','送料','関税','雑費','純利益'],
+      datasets:[{ data:[
+        latest.feeJPY, latest.adFeeJPY, latest.costJPY||0,
+        latest.shippingJPY, latest.customsJPY,
+        latest.miscJPY||0, Math.max(0,latest.profitJPY)
+      ], backgroundColor:['#dc2626','#ea580c','#7c3aed','#2563eb','#0891b2','#ca8a04','#16a34a'], borderWidth:2 }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{font:{size:10},boxWidth:12}},
+               title:{display:true,text:'直近月 '+latest.month,font:{size:12}}}
+    }
+  });
+}
+
+// ─── 明細モーダル（カード型）──────────────────────────
+var KEY_COLS = [
+  { idx:6,              label:'売上',          fmt:'usd', cls:'green' },
+  { idx:5,              label:'仕入金額',      fmt:'int', cls:'red'   },
+  { idx:16,             label:'送料',          fmt:'int', cls:'red'   },
+  { idx:17,             label:'関税',          fmt:'int', cls:'red'   },
+  { computed:'recv',    label:'受取金額',      fmt:'int', cls:'green' },
+  { computed:'profit',  label:'純利益',        fmt:'int', cls:'calc'  },
+  { computed:'margin',  label:'利益率',        fmt:'pct', cls:'calc'  },
+  { computed:'profitR', label:'利益(還付込)',   fmt:'int', cls:'amber' },
+  { computed:'marginR', label:'利益率(還付込)', fmt:'pct', cls:'amber' },
+  { idx:25,            label:'在庫日数' }
+];
+var SUB_COLS = [
+  { idx:7,  label:'固定手数料' },
+  { idx:8,  label:'FVF' },
+  { idx:9,  label:'ITF' },
+  { idx:10, label:'広告費' },
+  { idx:12, label:'Payout USD',  fmt:'usd2' },
+  { idx:13, label:'販売時為替' },
+  { idx:14, label:'実質為替' },
+  { idx:18, label:'手数料消費税' },
+  { idx:19, label:'仕入消費税' }
+];
+var LISTED_IDX = [1,3,4,5,6,7,8,9,10,12,13,14,16,17,18,19,23,25];
+
+function showDetail(month) {
+  document.getElementById('modalTitle').textContent = month + ' 取引明細';
+  document.getElementById('modalContent').innerHTML =
+    '<p style="color:#94a3b8;text-align:center;padding:24px">読み込み中...</p>';
+  document.getElementById('detailModal').classList.add('open');
+
+  gasRead('detail', {month: month}, function(data) {
+    if (data.status !== 'ok') {
+      document.getElementById('modalContent').innerHTML =
+        '<p style="color:#dc2626;padding:16px">エラー: '+(data.msg||'不明')+'</p>';
+      return;
+    }
+    var headers = data.headers || [];
+    var rows    = data.rows    || [];
+    if (!rows.length) {
+      document.getElementById('modalContent').innerHTML =
+        '<p style="color:#94a3b8;text-align:center;padding:24px">データなし</p>';
+      return;
+    }
+
+    var html = '<p style="font-size:11px;color:#888;margin-bottom:10px;">'+rows.length+'件</p>'
+             + '<div class="dc-list">';
+
+    rows.forEach(function(row) {
+      var sku      = escHtml(String(row[1] || ''));
+      var prodName = escHtml(String(row[4] || ''));
+      var date     = escHtml(String(row[3] || ''));
+      var tracking = escHtml(String(row[23] || ''));
+
+      html += '<div class="dc-card">';
+
+      // ヘッダー
+      html += '<div class="dc-head">'
+            + '<div class="dc-head-left">'
+            + '<span class="dc-sku">'+sku+'</span>'
+            + (prodName ? '<span class="dc-prod">'+prodName+'</span>' : '')
+            + '</div>'
+            + '<span class="dc-date">'+date+'</span>'
+            + (tracking ? '<span class="dc-tracking">'+tracking+'</span>' : '')
+            + '</div>';
+
+      // 主要数値（計算値含む）
+      var _rateS    = parseNum(row[13]);
+      var _rateO    = parseNum(row[14]);
+      var _salesJPY = parseNum(row[6])  * _rateS;
+      var _feeJPY   = (parseNum(row[7]) + parseNum(row[8]) + parseNum(row[9])) * _rateS;
+      var _adJPY    = parseNum(row[10]) * _rateS;
+      var _profitJPY = _salesJPY - _feeJPY - _adJPY - parseNum(row[5]) - parseNum(row[16]) - parseNum(row[17]);
+      var _profitR   = _profitJPY + parseNum(row[18]) + parseNum(row[19]);
+      var _marginR   = _salesJPY > 0 ? _profitR / _salesJPY * 100 : 0;
+      var _recv      = parseNum(row[12]) * _rateO;
+
+      html += '<div class="dc-main">';
+      KEY_COLS.forEach(function(col) {
+        var v, cls = col.cls || '';
+        if (col.computed) {
+          if      (col.computed === 'recv')    { v = _recv; }
+          else if (col.computed === 'profit')  { v = _profitJPY; cls = _profitJPY >= 0 ? 'green' : 'red'; }
+          else if (col.computed === 'margin')  { v = _salesJPY > 0 ? _profitJPY / _salesJPY * 100 : 0; cls = _profitJPY >= 0 ? 'green' : 'red'; }
+          else if (col.computed === 'profitR') { v = _profitR;   cls = _profitR   >= 0 ? 'green' : 'red'; }
+          else if (col.computed === 'marginR') { v = _marginR;   cls = _marginR   >= 0 ? 'green' : 'red'; }
+        } else {
+          v = row[col.idx];
+          if (v===''||v===null||v===undefined) return;
+        }
+        html += '<span class="dc-stat">'
+              + '<span class="dc-stat-lbl">'+col.label+'</span>'
+              + '<span class="dc-stat-val '+cls+'">' + fmtVal(v, col.fmt) + '</span>'
+              + '</span>';
+      });
+      html += '</div>';
+
+      // 詳細（展開）
+      html += '<button class="dc-expand-btn" onclick="toggleDC(this)">詳細を見る ▼</button>';
+      html += '<div class="dc-detail" style="display:none"><table class="dc-detail-tbl">';
+      SUB_COLS.forEach(function(col) {
+        var v = row[col.idx];
+        if (v===''||v===null||v===undefined) return;
+        html += '<tr><td class="dc-dt-k">'+col.label+'</td>'
+              + '<td class="dc-dt-v">'+fmtVal(v,col.fmt)+'</td></tr>';
+      });
+      // その他の列
+      row.forEach(function(v, i) {
+        if (LISTED_IDX.indexOf(i)>=0) return;
+        if (v===''||v===null||v===undefined) return;
+        var lbl = headers[i] ? escHtml(String(headers[i])) : ('列'+(i+1));
+        html += '<tr><td class="dc-dt-k">'+lbl+'</td>'
+              + '<td class="dc-dt-v">'+escHtml(String(v))+'</td></tr>';
+      });
+      html += '</table></div></div>';
+    });
+
+    html += '</div>';
+    document.getElementById('modalContent').innerHTML = html;
+  });
+}
+
+function toggleDC(btn) {
+  var d = btn.nextElementSibling;
+  var open = d.style.display !== 'none';
+  d.style.display = open ? 'none' : 'block';
+  btn.textContent  = open ? '詳細を見る ▼' : '閉じる ▲';
+}
+
+function fmtVal(v, fmt) {
+  var n = parseFloat(v);
+  if (fmt==='usd'||fmt==='usd2')
+    return isNaN(n) ? escHtml(String(v)) : '$'+n.toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2});
+  if (fmt==='int')
+    return isNaN(n) ? escHtml(String(v)) : '¥'+Math.round(n).toLocaleString();
+  if (fmt==='pct')
+    return isNaN(n) ? escHtml(String(v)) : n.toFixed(1)+'%';
+  if (!isNaN(n)) return Math.round(n*100)/100;
+  return escHtml(String(v));
+}
+
+function closeModal(e) {
+  if (e && e.target !== document.getElementById('detailModal')) return;
+  document.getElementById('detailModal').classList.remove('open');
+}
+
+// ─── CSV ダウンロード ──────────────────────────────────
+function downloadCSV() {
+  var data = filtered();
+  var hdrs = ['月','件数','売上(円)','販売手数料(円)','広告費(円)','雑費(円)',
+              '受取金額(円)','仕入金額(円)','送料(円)','関税(円)',
+              '純利益(円)','利益率(%)','消費税還付(円)','利益(還付込)(円)','利益率(還付込)(%)'];
+  var rows = [hdrs];
+  data.forEach(function(r) {
+    rows.push([
+      r.month, r.count, r.salesJPY, r.feeJPY, r.adFeeJPY,
+      r.miscJPY!==null?r.miscJPY:'', r.receivedJPY!==null?r.receivedJPY:'',
+      r.costJPY||0, r.shippingJPY, r.customsJPY, r.profitJPY, r.marginPct,
+      r.taxRefundJPY!==null?r.taxRefundJPY:'',
+      r.profitWithRefundJPY!==null?r.profitWithRefundJPY:'',
+      r.marginWithRefund!==null?r.marginWithRefund:''
+    ]);
+  });
+  var csv  = rows.map(function(r){ return r.join(','); }).join('\n');
+  var blob = new Blob(['﻿'+csv], {type:'text/csv;charset=utf-8;'});
+  var a    = document.createElement('a');
+  a.href   = URL.createObjectURL(blob);
+  a.download = 'ebay_'+(activeYear==='all'?'all':activeYear)+'_'+today()+'.csv';
+  a.click();
+}
+
+// ─── MF出力CSVダウンロード（4列形式）─────────────────
+function buildMFMonthSelect() {
+  var sel = document.getElementById('mfMonthSel');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">全期間</option>';
+  allData.slice().reverse().forEach(function(r) {
+    var opt = document.createElement('option');
+    opt.value = r.month; opt.textContent = r.month;
+    sel.appendChild(opt);
+  });
+}
+
+function downloadMFCSV() {
+  var sel = document.getElementById('mfMonthSel');
+  var selMonth = sel ? sel.value : '';
+  var data = selMonth
+    ? allData.filter(function(r){ return r.month === selMonth; })
+    : filtered();
+
+  var rows = [['日付','摘要','入金額(円)','出金額(円)']];
+  data.slice().reverse().forEach(function(r) {
+    var yr = parseInt(r.month.substring(0,4));
+    var mo = parseInt(r.month.substring(5,7));
+    var dt = r.month + '/' + ('0' + new Date(yr, mo, 0).getDate()).slice(-2);
+    var lb = r.month + ' eBay';
+    var recv = r.receivedJPY !== null ? Math.round(r.receivedJPY) : 0;
+    var fee  = Math.round(r.feeJPY);
+    var ad   = Math.round(r.adFeeJPY);
+    var misc = r.miscJPY !== null ? Math.round(r.miscJPY) : 0;
+    if (recv) rows.push([dt, lb + ' 売掛金',    '', recv]);
+    if (fee)  rows.push([dt, lb + ' 販売手数料', '', fee]);
+    if (ad)   rows.push([dt, lb + ' 広告費',     '', ad]);
+    if (misc) rows.push([dt, lb + ' 雑費',       '', misc]);
+  });
+
+  var csv = rows.map(function(r) {
+    return r.map(function(v) {
+      var s = String(v===null||v===undefined?'':v);
+      if (/[,"\n]/.test(s)) s = '"'+s.replace(/"/g,'""')+'"';
+      return s;
+    }).join(',');
+  }).join('\r\n');
+
+  var suffix = selMonth ? selMonth.replace('/','') : (activeYear==='all'?'all':activeYear);
+  var blob = new Blob(['﻿'+csv], {type:'text/csv;charset=utf-8;'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'MF_eBay_' + suffix + '_' + today() + '.csv';
+  a.click();
+}
+
+// ─── 国内販売 ──────────────────────────────────────────
+var domData = [];
+function loadDomesticData() {
+  document.getElementById('domContent').innerHTML =
+    '<p style="font-size:12px;color:#94a3b8;padding:4px 0">読み込み中...</p>';
+  gasRead('domesticMonthly', {}, function(data) {
+    if (data.status !== 'ok') {
+      document.getElementById('domContent').innerHTML =
+        '<p style="color:#dc2626;font-size:12px;padding:4px 0">エラー: '+(data.msg||'不明')+'</p>';
+      return;
+    }
+    domData = data.monthly || [];
+    renderDomesticTable();
+  });
+}
+
+function renderDomesticTable() {
+  if (!domData.length) {
+    document.getElementById('domContent').innerHTML =
+      '<p style="font-size:12px;color:#94a3b8;padding:4px 0">データなし</p>';
+    return;
+  }
+  var ts=0, tco=0, tf=0, ta=0, tsh=0, tpr=0, tc=0;
+  var body = '';
+  domData.forEach(function(r) {
+    ts+=r.salesJPY; tco+=r.costJPY; tf+=r.feesJPY;
+    ta+=r.adFeeJPY; tsh+=r.shipJPY; tpr+=r.profitJPY; tc+=r.count;
+    var pc = r.profitJPY>=0?'p-pos':'p-neg';
+    body += '<tr>'
+      + '<td class="center"><span class="month-link" onclick="showDomDetail(\''+r.month+'\')">'+ r.month +'</span></td>'
+      + '<td class="center">'+r.count+'</td>'
+      + '<td>'+yen(r.salesJPY)+'</td>'
+      + '<td>'+yen(r.costJPY)+'</td>'
+      + '<td>'+yen(r.feesJPY)+'</td>'
+      + '<td>'+yen(r.shipJPY)+'</td>'
+      + '<td class="'+pc+'">'+yen(r.profitJPY)+'</td>'
+      + '<td class="'+pc+'">'+r.marginPct+'%</td>'
+      + '</tr>';
+  });
+  var fmg = ts>0?(tpr/ts*100).toFixed(1):'0';
+  var foot = '<tr>'
+    + '<td class="center">合計</td><td class="center">'+tc+'</td>'
+    + '<td>'+yen(ts)+'</td><td>'+yen(tco)+'</td><td>'+yen(tf)+'</td>'
+    + '<td>'+yen(tsh)+'</td>'
+    + '<td class="'+(tpr>=0?'p-pos':'p-neg')+'">'+yen(tpr)+'</td>'
+    + '<td class="'+(tpr>=0?'p-pos':'p-neg')+'">'+fmg+'%</td>'
+    + '</tr>';
+
+  var monthOpts = '<option value="">全期間</option>';
+  domData.slice().reverse().forEach(function(r) {
+    monthOpts += '<option value="'+r.month+'">'+r.month+'</option>';
+  });
+
+  document.getElementById('domContent').innerHTML =
+    '<div class="ctrl-row" style="margin-bottom:8px">'
+    + '<select id="domMfMonthSel" style="padding:6px 8px;border-radius:8px;border:1.5px solid var(--border);font-size:12px;color:var(--text);">'
+    + monthOpts + '</select>'
+    + '<button class="btn btn-blue" onclick="downloadDomMFCSV()">MF出力</button>'
+    + '</div>'
+    + '<div class="tbl-wrap"><table>'
+    + '<thead>'
+    + '<tr class="grp-row"><th class="grp-base" colspan="2">基本</th>'
+    + '<th class="grp-rev grp-divider" colspan="1">収益</th>'
+    + '<th class="grp-cost grp-divider" colspan="3">コスト</th>'
+    + '<th class="grp-profit grp-divider" colspan="2">損益</th></tr>'
+    + '<tr>'
+    + '<th class="center th-base">月</th><th class="center th-base">件数</th>'
+    + '<th class="th-sales grp-divider">売上</th>'
+    + '<th class="th-cost grp-divider">仕入金額</th>'
+    + '<th class="th-fee">手数料計</th>'
+    + '<th class="th-logis grp-divider">送料</th>'
+    + '<th class="th-profit grp-divider">純利益</th>'
+    + '<th class="th-profit">利益率</th>'
+    + '</tr></thead>'
+    + '<tbody>'+body+'</tbody>'
+    + '<tfoot>'+foot+'</tfoot>'
+    + '</table></div>';
+}
+
+// ─── 国内販売 明細モーダル ─────────────────────────────
+function showDomDetail(month) {
+  document.getElementById('modalTitle').textContent = month + ' 国内販売 明細';
+  document.getElementById('modalContent').innerHTML =
+    '<p style="color:#94a3b8;text-align:center;padding:24px">読み込み中...</p>';
+  document.getElementById('detailModal').classList.add('open');
+
+  gasRead('domesticDetail', {month: month}, function(data) {
+    if (data.status !== 'ok') {
+      document.getElementById('modalContent').innerHTML =
+        '<p style="color:#dc2626;padding:16px">エラー: '+(data.msg||'不明')+'</p>';
+      return;
+    }
+    var rows = data.rows || [];
+    if (!rows.length) {
+      document.getElementById('modalContent').innerHTML =
+        '<p style="color:#94a3b8;text-align:center;padding:24px">データなし</p>';
+      return;
+    }
+
+    var html = '<p style="font-size:11px;color:#888;margin-bottom:10px;">'+rows.length+'件</p>'
+             + '<div class="dc-list">';
+
+    rows.forEach(function(row) {
+      var sku      = escHtml(String(row[1]  || ''));  // B=SKU
+      var prodName = escHtml(String(row[4]  || ''));  // E=商品名
+      var saleDate = escHtml(String(row[3]  || ''));  // D=販売日
+      var tracking = escHtml(String(row[17] || ''));  // R=送り状番号
+
+      var salesJPY = parseNum(row[6]);   // G=販売金額
+      var fees     = parseNum(row[10]);  // K=手数料合計
+      var ship     = parseNum(row[11]);  // L=国内送料
+      var profit   = parseNum(row[14]);  // O=最終損益
+      var margin   = parseFloat(row[15]) || 0; // P=利益率
+
+      html += '<div class="dc-card">'
+            + '<div class="dc-head">'
+            + '<div class="dc-head-left">'
+            + '<span class="dc-sku">'+sku+'</span>'
+            + (prodName ? '<span class="dc-prod">'+prodName+'</span>' : '')
+            + '</div>'
+            + '<span class="dc-date">'+saleDate+'</span>'
+            + (tracking ? '<span class="dc-tracking">'+tracking+'</span>' : '')
+            + '</div>';
+
+      html += '<div class="dc-main">'
+            + domStat('販売金額', '¥'+Math.round(salesJPY).toLocaleString(), 'green')
+            + domStat('手数料計', '¥'+Math.round(fees).toLocaleString(),     'red')
+            + domStat('送料',     '¥'+Math.round(ship).toLocaleString(),     'red')
+            + domStat('最終損益', '¥'+Math.round(profit).toLocaleString(),   profit>=0?'green':'red')
+            + domStat('利益率',   (margin*100).toFixed(1)+'%',               profit>=0?'green':'red')
+            + '</div>';
+
+      html += '<button class="dc-expand-btn" onclick="toggleDC(this)">詳細を見る ▼</button>'
+            + '<div class="dc-detail" style="display:none"><table class="dc-detail-tbl">';
+      [
+        {i:2,  l:'仕入れ日'}, {i:5,  l:'仕入れ金額'}, {i:7, l:'手数料率'},
+        {i:8,  l:'Total fees'}, {i:9, l:'広告費'},
+        {i:12, l:'仮払い消費税'}, {i:13, l:'支払い消費税'},
+        {i:16, l:'売れるまでの日数'}
+      ].forEach(function(c) {
+        var v = row[c.i];
+        if (v===''||v===null||v===undefined) return;
+        html += '<tr><td class="dc-dt-k">'+c.l+'</td>'
+              + '<td class="dc-dt-v">'+escHtml(String(v))+'</td></tr>';
+      });
+      html += '</table></div></div>';
+    });
+
+    html += '</div>';
+    document.getElementById('modalContent').innerHTML = html;
+  });
+}
+function domStat(label, value, cls) {
+  return '<span class="dc-stat">'
+       + '<span class="dc-stat-lbl">'+label+'</span>'
+       + '<span class="dc-stat-val '+(cls||'')+'">'+ value +'</span>'
+       + '</span>';
+}
+
+// ─── 国内販売 MF出力CSV ────────────────────────────────
+function downloadDomMFCSV() {
+  var sel = document.getElementById('domMfMonthSel');
+  var selMonth = sel ? sel.value : '';
+  var data = selMonth
+    ? domData.filter(function(r){ return r.month === selMonth; })
+    : domData;
+
+  var rows = [['日付','摘要','入金額(円)','出金額(円)']];
+  data.slice().reverse().forEach(function(r) {
+    var yr = parseInt(r.month.substring(0,4));
+    var mo = parseInt(r.month.substring(5,7));
+    var dt  = r.month + '/' + ('0' + new Date(yr, mo, 0).getDate()).slice(-2);
+    var lb  = r.month + ' 国内販売';
+    var net  = Math.round(r.salesJPY - r.feesJPY - r.shipJPY);
+    var fees = Math.round(r.feesJPY);
+    var ship = Math.round(r.shipJPY);
+    if (net)  rows.push([dt, lb + ' 利益',  '', net]);
+    if (fees) rows.push([dt, lb + ' 手数料', '', fees]);
+    if (ship) rows.push([dt, lb + ' 送料',   '', ship]);
+  });
+
+  var csv = rows.map(function(r) {
+    return r.map(function(v) {
+      var s = String(v===null||v===undefined?'':v);
+      if (/[,"\n]/.test(s)) s = '"'+s.replace(/"/g,'""')+'"';
+      return s;
+    }).join(',');
+  }).join('\r\n');
+
+  var suffix = selMonth ? selMonth.replace('/','') : 'all';
+  var blob = new Blob(['﻿'+csv], {type:'text/csv;charset=utf-8;'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'MF_国内販売_' + suffix + '_' + today() + '.csv';
+  a.click();
+}
+
+// ─── ユーティリティ ────────────────────────────────────
+function yen(v)       { return '¥'+Math.round(v).toLocaleString(); }
+function setStatus(m) { document.getElementById('status').textContent = m; }
+function today()      { return new Date().toISOString().substring(0,10); }
+function escHtml(s)   { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+</script>
+</body>
+</html>

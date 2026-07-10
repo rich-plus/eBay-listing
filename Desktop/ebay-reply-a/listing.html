@@ -1,0 +1,2344 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>eBay ポケカ出品ツール</title>
+  <style>
+    :root {
+      --blue:      #1a3a8c;
+      --blue-dk:   #0d2460;
+      --blue-lt:   #e8edf8;
+      --yellow:    #FFCC00;
+      --yellow-dk: #e6b800;
+      --green:     #2a7d4a;
+      --red:       #cc2200;
+      --border:    #b0bcd8;
+      --text:      #1a1a2e;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', 'Meiryo', sans-serif;
+      background: #eaecf5;
+      color: var(--text);
+      min-height: 100vh;
+    }
+    header {
+      background: linear-gradient(135deg, var(--blue-dk) 0%, var(--blue) 100%);
+      color: var(--yellow);
+      text-align: center;
+      padding: 20px 16px 16px;
+      border-bottom: 4px solid var(--yellow);
+      position: sticky; top: 0; z-index: 100;
+    }
+    header h1 { font-size: 1.4em; letter-spacing: 1px; }
+    header p  { font-size: 12px; color: #ffeaa0; margin-top: 4px; }
+    .container { max-width: 860px; margin: 0 auto; padding: 18px 14px 40px; }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 18px 18px 20px;
+      margin-bottom: 16px;
+      border: 2px solid var(--border);
+      box-shadow: 0 2px 10px rgba(26,58,140,.08);
+    }
+    .card-hd {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 14px; padding-bottom: 10px;
+      border-bottom: 2px solid var(--yellow);
+    }
+    .step {
+      background: var(--blue); color: var(--yellow);
+      width: 28px; height: 28px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: bold; font-size: 13px; flex-shrink: 0;
+    }
+    .card-hd h2 { font-size: .95em; color: var(--blue); font-weight: bold; }
+    .lbl  { display: block; font-size: 13px; font-weight: bold; color: var(--blue); margin-bottom: 5px; }
+    .hint { font-size: 12px; color: #778; margin-bottom: 8px; }
+    textarea, input[type=text] {
+      width: 100%; padding: 9px 11px;
+      border: 1.5px solid var(--border); border-radius: 8px;
+      font-size: 14px; font-family: inherit; resize: vertical;
+      background: #fafbff; transition: border-color .2s;
+    }
+    textarea:focus, input[type=text]:focus {
+      outline: none; border-color: var(--blue); background: #fff;
+    }
+    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+    button {
+      padding: 8px 15px; border: none; border-radius: 8px;
+      cursor: pointer; font-size: 13px; font-weight: bold;
+      font-family: inherit; transition: all .15s;
+    }
+    button:hover { transform: translateY(-1px); }
+    .btn-gen  { background: var(--blue);    color: #fff; }
+    .btn-gen:hover  { background: var(--blue-dk); }
+    .btn-ok   { background: var(--yellow);  color: var(--text); }
+    .btn-ok:hover   { background: var(--yellow-dk); }
+    .btn-tl   { background: #5b4fcf;        color: #fff; }
+    .btn-tl:hover   { background: #4a3db5; }
+    .btn-ref  { background: #17a2b8;        color: #fff; }
+    .btn-ref:hover  { background: #138496; }
+    .word-btns-wrap {
+      display: flex; flex-wrap: wrap; gap: 6px;
+      padding: 10px 12px; margin: 8px 0;
+      background: var(--blue-lt); border: 1px solid var(--border); border-radius: 8px;
+      min-height: 44px;
+    }
+    .word-btn {
+      padding: 4px 12px; font-size: 12px; font-weight: bold; font-family: inherit;
+      border: 1.5px solid var(--blue); background: #fff; color: var(--blue);
+      border-radius: 14px; cursor: pointer; transition: all .12s;
+    }
+    .word-btn:hover:not(.used) { background: var(--blue); color: #fff; transform: translateY(-1px); }
+    .word-btn.used { background: var(--blue); color: #fff; opacity: 0.35; cursor: not-allowed; }
+    .word-btn.freq-hi { border-color: var(--blue-dk); background: #dce5f8; }
+    .btn-copy {
+      background: var(--green); color: #fff;
+      width: 100%; padding: 13px; font-size: 15px;
+      margin-top: 12px; border-radius: 10px;
+    }
+    .btn-copy:hover { background: #1d5e37; }
+    .ccount   { font-size: 12px; text-align: right; margin-top: 3px; }
+    .c-ok { color: var(--green); }
+    .c-ng { color: var(--red); }
+    .grade-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; }
+    @media(min-width:520px){ .grade-grid { grid-template-columns: repeat(4,1fr); } }
+    .gc {
+      border: 2px solid var(--border); border-radius: 10px;
+      padding: 12px 8px; text-align: center; cursor: pointer;
+      transition: all .18s; user-select: none;
+    }
+    .gc:hover  { border-color: var(--blue); background: var(--blue-lt); }
+    .gc.active { border-color: var(--blue); background: var(--blue); color: #fff; }
+    .gc .gn { font-weight: bold; font-size: 14px; }
+    .gc .gj { font-size: 11px; margin-top: 3px; opacity: .75; }
+    .badge {
+      display: inline-block; background: var(--green); color: #fff;
+      font-size: 11px; padding: 2px 9px; border-radius: 20px; margin-left: 6px;
+    }
+    .prev {
+      background: #f0f8f4; border: 1.5px solid #80c89a;
+      border-radius: 8px; padding: 10px; margin-top: 10px;
+    }
+    .prev .pl { font-size: 12px; color: #2a7d4a; font-weight: bold; margin-bottom: 6px; }
+    .spin { font-size: 12px; color: #5b4fcf; margin-left: 8px; display: none; }
+    .tpl-out {
+      width: 100%; height: 260px;
+      font-size: 11.5px; font-family: 'Consolas','Courier New',monospace;
+      border: 1.5px solid var(--border); border-radius: 8px;
+      padding: 10px; background: #f8faff; resize: vertical;
+    }
+    .copy-ok { text-align: center; color: var(--green); font-size: 13px; margin-top: 6px; display: none; }
+    .divider { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border); }
+    .net-note { font-size: 11px; color: #999; margin-top: 6px; }
+    .api-bar {
+      background: #fff; border-radius: 12px; padding: 14px 18px;
+      margin-bottom: 16px; border: 2px solid var(--border);
+      box-shadow: 0 2px 10px rgba(26,58,140,.08);
+    }
+    .api-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+    .api-bar label { font-size: 13px; font-weight: bold; color: var(--blue); white-space: nowrap; }
+    .api-bar input[type=password] {
+      flex: 1; min-width: 180px; padding: 8px 11px;
+      border: 1.5px solid var(--border); border-radius: 8px;
+      font-size: 13px; font-family: inherit; background: #fafbff; transition: border-color .2s;
+    }
+    .api-bar input[type=password]:focus { outline: none; border-color: var(--blue); background: #fff; }
+    .api-bar select {
+      padding: 8px 10px; border: 1.5px solid var(--border); border-radius: 8px;
+      font-size: 13px; font-family: inherit; background: #fafbff; cursor: pointer;
+    }
+    .api-bar select:focus { outline: none; border-color: var(--blue); }
+    .api-note { font-size: 11px; color: #999; }
+    .api-ok { color: var(--green); font-size: 11px; font-weight: bold; display: none; }
+
+    /* ── Memo card ── */
+    .memo-card {
+      background: #fffdf0;
+      border: 2px solid var(--yellow);
+      border-radius: 12px;
+      padding: 14px 18px 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 8px rgba(200,160,0,.12);
+    }
+    .memo-hd {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 13px; font-weight: bold; color: #7a6000;
+      margin-bottom: 12px; padding-bottom: 8px;
+      border-bottom: 1.5px dashed var(--yellow-dk);
+    }
+    .memo-row {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+    }
+    @media(max-width:520px){ .memo-row { grid-template-columns: 1fr; } }
+    .memo-field label {
+      display: block; font-size: 12px; font-weight: bold;
+      color: #7a6000; margin-bottom: 5px;
+    }
+    .memo-field input[type=text] {
+      background: #fff; border-color: #e8d060;
+    }
+    .memo-field input[type=text]:focus {
+      border-color: var(--yellow-dk); background: #fff;
+    }
+    .memo-hint { font-size: 11px; color: #aaa; margin-top: 3px; }
+    .memo-row-3 { grid-template-columns: 1fr 1fr 1fr; }
+    @media(max-width:600px){ .memo-row-3 { grid-template-columns: 1fr; } }
+    .platform-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; }
+    .pc, .stc, .adc {
+      padding: 5px 13px; border: 1.5px solid var(--border);
+      border-radius: 20px; cursor: pointer; font-size: 12px; font-weight: bold;
+      transition: all .15s; user-select: none; background: #fff; color: var(--text);
+    }
+    .pc:hover,  .stc:hover,  .adc:hover  { border-color: var(--blue); background: var(--blue-lt); }
+    .pc.active, .stc.active, .adc.active { border-color: var(--blue); background: var(--blue); color: #fff; }
+    .memo-send-btn {
+      margin-left: auto; padding: 5px 14px; font-size: 12px; font-weight: bold;
+      font-family: inherit; background: var(--green); color: #fff;
+      border: none; border-radius: 8px; cursor: pointer; transition: all .15s;
+      white-space: nowrap;
+    }
+    .memo-send-btn:hover:not(:disabled) { background: #1d5e37; transform: translateY(-1px); }
+    .memo-send-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+    .sku-parts { display: flex; align-items: center; gap: 4px; margin-bottom: 3px; }
+    .sku-parts input[type=text] {
+      flex: 1; min-width: 0; text-align: center;
+      font-weight: bold; font-size: 13px;
+    }
+    .sku-sep { color: #aaa; font-size: 15px; font-weight: bold; flex-shrink: 0; padding: 0 1px; }
+    .sku-sub { display: flex; gap: 4px; font-size: 10px; color: #aaa; margin-bottom: 6px; }
+    .sku-sub span { flex: 1; text-align: center; }
+    .sku-sub .sku-sep2 { flex: 0; min-width: 14px; }
+    .sku-result {
+      background: var(--blue-lt); border: 1.5px solid var(--border);
+      border-radius: 8px; padding: 6px 10px;
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    }
+    .sku-val { font-size: 14px; font-weight: bold; color: var(--blue); letter-spacing: .04em; }
+    .sku-val.empty { color: #bbb; font-weight: normal; font-style: italic; }
+    .btn-sku-copy {
+      font-size: 11px; padding: 3px 9px; border-radius: 5px;
+      border: 1px solid var(--blue); background: #fff; color: var(--blue);
+      cursor: pointer; font-weight: bold; flex-shrink: 0; font-family: inherit;
+      transition: all .15s;
+    }
+    .btn-sku-copy:hover { background: var(--blue); color: #fff; }
+
+    /* ── 保存リスト ── */
+    .memo-list-btn {
+      padding: 4px 11px; font-size: 12px; font-weight: bold; font-family: inherit;
+      background: #fff; color: var(--blue); border: 1.5px solid var(--blue);
+      border-radius: 8px; cursor: pointer; transition: all .15s; white-space: nowrap;
+    }
+    .memo-list-btn:hover { background: var(--blue-lt); transform: translateY(-1px); }
+    .btn-new-tab {
+      padding: 4px 11px; font-size: 12px; font-weight: bold; font-family: inherit;
+      background: var(--yellow); color: var(--blue-dk); border: 1.5px solid var(--yellow-dk);
+      border-radius: 8px; cursor: pointer; transition: all .15s; white-space: nowrap;
+    }
+    .btn-new-tab:hover { background: var(--yellow-dk); transform: translateY(-1px); }
+    .save-count {
+      display: inline-block; background: var(--blue); color: #fff;
+      font-size: 10px; padding: 0 5px; border-radius: 10px; margin-left: 3px;
+      min-width: 16px; text-align: center;
+    }
+    .save-list-panel {
+      margin-top: 12px; padding-top: 10px;
+      border-top: 1.5px dashed var(--yellow-dk);
+    }
+    .save-list-hd {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .save-list-hd b { font-size: 13px; color: #7a6000; }
+    .btn-close-list {
+      background: none; border: none; cursor: pointer;
+      font-size: 16px; color: #aaa; padding: 2px 6px; line-height: 1;
+    }
+    .btn-close-list:hover { color: #666; transform: none; }
+    .save-item {
+      border: 1.5px solid var(--border); border-radius: 8px;
+      padding: 9px 12px; margin-bottom: 7px; background: #fafbff;
+      transition: border-color .15s;
+    }
+    .save-item:hover { border-color: var(--blue); }
+    .save-item.recorded { background: #f0fff5; border-color: #a8dfc0; }
+    .save-item.recorded:hover { border-color: #2a7d4a; }
+    .save-recorded-badge {
+      display: inline-block; font-size: 10px; font-weight: normal;
+      color: #2a7d4a; background: #d6f5e3; border: 1px solid #a8dfc0;
+      border-radius: 10px; padding: 1px 7px; margin-left: 7px; vertical-align: middle;
+    }
+    .save-item-name { font-size: 13px; font-weight: bold; color: var(--text); margin-bottom: 2px; }
+    .save-item-meta { font-size: 11px; color: #888; margin-bottom: 6px; }
+    .save-item-btns { display: flex; gap: 6px; }
+    .btn-save-load {
+      padding: 4px 11px; font-size: 11px; font-weight: bold; font-family: inherit;
+      background: var(--blue); color: #fff; border: none;
+      border-radius: 6px; cursor: pointer; transition: all .15s;
+    }
+    .btn-save-load:hover { background: var(--blue-dk); transform: none; }
+    .btn-save-del {
+      padding: 4px 11px; font-size: 11px; font-weight: bold; font-family: inherit;
+      background: #fff; color: var(--red); border: 1.5px solid var(--red);
+      border-radius: 6px; cursor: pointer; transition: all .15s;
+    }
+    .btn-save-del:hover { background: #fff3f0; transform: none; }
+    /* フォルダバー */
+    .folder-bar {
+      display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
+      padding: 6px 2px 10px; font-size: 12px;
+      border-bottom: 1px solid var(--border); margin-bottom: 6px;
+    }
+    .folder-bar-lbl { color: #666; white-space: nowrap; }
+    .folder-bar select {
+      font-family: inherit; font-size: 12px;
+      border: 1.5px solid var(--border); border-radius: 6px;
+      padding: 3px 8px; color: var(--text); background: #fff; cursor: pointer;
+    }
+    #folderNew {
+      font-size: 12px; font-family: inherit;
+      border: 1.5px solid var(--blue); border-radius: 6px;
+      padding: 3px 8px; width: 160px;
+    }
+    .btn-folder-ok {
+      font-size: 11px; font-family: inherit; font-weight: bold;
+      padding: 3px 10px; border: none; border-radius: 6px;
+      background: var(--blue); color: #fff; cursor: pointer;
+    }
+    .btn-folder-cancel {
+      font-size: 11px; font-family: inherit;
+      padding: 3px 8px; border: 1px solid #ccc; border-radius: 6px;
+      background: #fff; color: #666; cursor: pointer;
+    }
+    /* フォルダグループ */
+    .save-folder { margin-bottom: 10px; }
+    .save-folder-hd {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 12px; font-weight: bold; color: var(--blue-dk);
+      background: var(--blue-lt); padding: 6px 10px; border-radius: 6px;
+      cursor: pointer; user-select: none; margin-bottom: 4px;
+    }
+    .save-folder-hd:hover { background: #d0daf0; }
+    .save-folder-count { font-weight: normal; color: #888; }
+    .save-folder-items { padding-left: 2px; }
+    .folder-move-sel {
+      font-size: 10px; font-family: inherit;
+      border: 1px solid #bbb; border-radius: 5px;
+      padding: 2px 4px; color: #555; background: #f8f8f8; cursor: pointer;
+    }
+    .folder-move-sel:hover { border-color: var(--blue); }
+    .btn-folder-action {
+      font-size: 10px; font-family: inherit; font-weight: normal;
+      padding: 2px 8px; border: 1px solid #b0c0e0; border-radius: 5px;
+      background: rgba(255,255,255,.7); color: var(--blue-dk); cursor: pointer;
+      white-space: nowrap; flex-shrink: 0;
+    }
+    .btn-folder-action:hover { background: #fff; }
+    .folder-bulk-sel {
+      font-size: 10px; font-family: inherit;
+      border: 1px solid #b0c0e0; border-radius: 5px;
+      padding: 2px 4px; color: var(--blue-dk); background: rgba(255,255,255,.7);
+      cursor: pointer; flex-shrink: 0;
+    }
+    .folder-bulk-sel:hover { background: #fff; }
+    /* 複数選択 */
+    .save-item { display: flex; align-items: flex-start; gap: 8px; }
+    .save-item-check { margin-top: 3px; cursor: pointer; accent-color: var(--blue); flex-shrink: 0; width: 14px; height: 14px; }
+    .save-item-body { flex: 1; min-width: 0; }
+    .sel-action-bar {
+      display: none; align-items: center; flex-wrap: wrap; gap: 8px;
+      padding: 7px 10px; margin-bottom: 10px;
+      background: #fffbe6; border: 1.5px solid var(--yellow-dk); border-radius: 8px; font-size: 12px;
+    }
+    .sel-count-badge { font-weight: bold; color: var(--blue-dk); white-space: nowrap; }
+    .folder-sel-all { margin-right: 4px; cursor: pointer; accent-color: var(--blue); }
+    .save-auto-indicator {
+      font-size: 10px; color: #aaa; margin-left: 6px; font-weight: normal;
+    }
+    .tab-live {
+      display: inline-block; font-size: 11px;
+      background: #fff3b0; color: #7a6000;
+      padding: 1px 8px; border-radius: 10px;
+      margin-left: 6px; font-weight: normal;
+    }
+
+    /* ── Step 6: Item Specifics ── */
+    @keyframes spin-ring { to { transform: rotate(360deg); } }
+    .specs-loading {
+      display: flex; align-items: center; gap: 10px;
+      padding: 16px 0; color: #666; font-size: 13px;
+    }
+    .specs-loading::before {
+      content: '';
+      width: 20px; height: 20px;
+      border: 2.5px solid var(--border);
+      border-top-color: var(--blue);
+      border-radius: 50%;
+      animation: spin-ring .8s linear infinite;
+      flex-shrink: 0;
+    }
+    .specs-error {
+      background: #fff3f0; border: 1px solid #f5b4aa;
+      border-radius: 8px; padding: 12px 16px; color: var(--red);
+      font-size: 13px; margin-bottom: 8px;
+    }
+    .specs-cat {
+      font-size: 11px; font-weight: bold; text-transform: uppercase;
+      letter-spacing: .08em; color: var(--blue-dk);
+      margin: 16px 0 6px; display: flex; align-items: center; gap: 8px;
+    }
+    .specs-cat::after { content:''; flex:1; height:1px; background:var(--border); }
+    .spec-item {
+      display: flex; align-items: flex-start; gap: 10px;
+      border: 1.5px solid var(--border); border-radius: 8px;
+      padding: 9px 12px; margin-bottom: 7px;
+      background: #fafbff; transition: border-color .15s;
+    }
+    .spec-item:hover { border-color: var(--blue); }
+    .spec-name {
+      font-size: 11px; font-weight: bold; color: #556;
+      min-width: 165px; flex-shrink: 0; padding-top: 3px;
+      text-transform: uppercase; letter-spacing: .04em;
+    }
+    .spec-col { flex: 1; }
+    .spec-val { font-size: 14px; font-weight: bold; color: var(--text); word-break: break-word; }
+    .spec-val.empty { color: #bbb; font-weight: normal; font-style: italic; }
+    .spec-reason {
+      font-size: 11px; color: #778; margin-top: 4px;
+      padding: 4px 9px; background: #eef2fb;
+      border-left: 2px solid var(--blue); border-radius: 0 4px 4px 0;
+    }
+    .btn-scp {
+      padding: 3px 10px; font-size: 11px; border-radius: 5px;
+      border: 1px solid var(--border); background: #f0f0f4; color: #444;
+      cursor: pointer; flex-shrink: 0; font-family: inherit; font-weight: bold;
+      transition: all .15s;
+    }
+    .btn-scp:hover { background: var(--blue); color: #fff; border-color: var(--blue); transform: none; }
+    .btn-scp.copied { background: var(--green); color: #fff; border-color: var(--green); }
+    .btn-copy-all-specs {
+      background: var(--blue); color: #fff;
+      padding: 9px 18px; border-radius: 8px; font-size: 13px; font-weight: bold;
+      border: none; cursor: pointer; transition: all .15s;
+    }
+    .btn-copy-all-specs:hover { background: var(--blue-dk); }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>&#9889; eBay ポケカ出品ツール &#9889;</h1>
+  <p>タイトル生成 / グレード選択 / 状態翻訳 / テンプレート作成</p>
+</header>
+
+<div class="container">
+
+  <!-- メモ欄 -->
+  <div class="memo-card">
+    <div class="memo-hd">
+      &#128203; 仕入れ・出品メモ
+      <span class="tab-live" id="tabLive" style="display:none">タブ名に反映中</span>
+      <button class="btn-new-tab" onclick="window.open(location.href.split('#')[0]+'#new','_blank')">&#10133; 新規作成</button>
+      <button class="memo-list-btn" id="saveListBtn">
+        &#128194; 保存済み <span class="save-count" id="saveCount">0</span>件
+      </button>
+      <button class="memo-send-btn" id="memoSendBtn" onclick="sendToSheets()">&#128228; スプレッドシートに記録</button>
+    </div>
+
+    <!-- フォルダ選択バー -->
+    <div class="folder-bar">
+      <span class="folder-bar-lbl">&#128193; 保存フォルダ：</span>
+      <select id="folderSel" onchange="onFolderSelChange()"></select>
+      <span id="folderNewWrap" style="display:none;align-items:center;gap:4px">
+        <input type="text" id="folderNew" placeholder="例：2026年6月" maxlength="30"
+               onkeydown="if(event.key==='Enter')addNewFolder()">
+        <button class="btn-folder-ok" onclick="addNewFolder()">追加</button>
+        <button class="btn-folder-cancel" onclick="cancelNewFolder()">&#10005;</button>
+      </span>
+    </div>
+
+    <!-- 行1: 商品名 / SKU -->
+    <div class="memo-row">
+      <div class="memo-field">
+        <label>&#127991; 商品名</label>
+        <input type="text" id="productName" placeholder="例：ダークゲンガー Neo Destiny 094" oninput="updTab()">
+        <div class="memo-hint">入力するとブラウザのタブ名が変わります</div>
+      </div>
+      <div class="memo-field">
+        <label>&#128290; SKU番号（自動生成）</label>
+        <div class="sku-parts">
+          <input type="text" id="skuDate" placeholder="260609" maxlength="8"
+                 oninput="updSKU()" title="出品日（YYMMDD）">
+          <span class="sku-sep">+</span>
+          <input type="text" id="skuLoc" placeholder="AA06" maxlength="10"
+                 oninput="updSKU()" title="保管場所">
+          <span class="sku-sep">+</span>
+          <input type="text" id="skuCard" placeholder="130" maxlength="10"
+                 oninput="updSKU()" title="カード番号">
+        </div>
+        <div class="sku-sub">
+          <span>出品日</span><span class="sku-sep2"></span>
+          <span>保管場所</span><span class="sku-sep2"></span>
+          <span>カード番号</span>
+        </div>
+        <div class="sku-result">
+          <span class="sku-val empty" id="skuDisplay">未入力</span>
+          <button class="btn-sku-copy" onclick="copySKU()">コピー</button>
+        </div>
+        <input type="hidden" id="skuNumber">
+      </div>
+    </div>
+
+    <!-- 付属品 -->
+    <div class="memo-row">
+      <div class="memo-field" style="flex:1">
+        <label>&#128230; 付属品</label>
+        <input type="text" id="accessories" placeholder="例：スリーブ、ローダー、外箱">
+      </div>
+    </div>
+
+    <!-- 行2: 仕入れ日 / 仕入れ金額 / 取引ID -->
+    <div class="memo-row memo-row-3">
+      <div class="memo-field">
+        <label>&#128197; 仕入れ日</label>
+        <input type="date" id="purchaseDate">
+      </div>
+      <div class="memo-field">
+        <label>&#128180; 仕入れ金額（円）</label>
+        <input type="number" id="purchasePrice" placeholder="例：3500" min="0">
+      </div>
+      <div class="memo-field">
+        <label>&#128278; 取引ID</label>
+        <input type="text" id="transactionId" placeholder="例：m12345678">
+      </div>
+    </div>
+
+    <!-- 行3: 氏名・URL / 個人か店舗か -->
+    <div class="memo-row">
+      <div class="memo-field">
+        <label>&#128100; 氏名・URL</label>
+        <input type="text" id="sellerName" placeholder="例：山田太郎 / メルカリURL">
+      </div>
+      <div class="memo-field">
+        <label>&#127978; 個人 / 店舗</label>
+        <div class="platform-grid">
+          <div class="stc" onclick="selSellerType(this,'個人')">個人</div>
+          <div class="stc" onclick="selSellerType(this,'店舗')">店舗</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 住所 -->
+    <div class="memo-field" style="margin-top:10px">
+      <label>&#128205; 住所</label>
+      <div class="platform-grid">
+        <div class="adc" onclick="selAddress(this,'匿名発送')">&#128274; 匿名発送</div>
+        <div class="adc" onclick="selAddress(this,'住所入力')">&#9999; 住所を入力</div>
+      </div>
+      <input type="text" id="sellerAddress" placeholder="例：東京都渋谷区〇〇1-2-3"
+             style="display:none; margin-top:6px">
+    </div>
+
+    <!-- 購入プラットフォーム -->
+    <div class="memo-field" style="margin-top:10px">
+      <label>&#128722; 購入プラットフォーム</label>
+      <div class="platform-grid">
+        <div class="pc" onclick="selPlatform(this,'メルカリ')">メルカリ</div>
+        <div class="pc" onclick="selPlatform(this,'ヤフーフリマ')">ヤフーフリマ</div>
+        <div class="pc" onclick="selPlatform(this,'ラクマ')">ラクマ</div>
+        <div class="pc" onclick="selPlatform(this,'ヤフオク')">ヤフオク</div>
+        <div class="pc" onclick="selPlatform(this,'その他')">その他</div>
+      </div>
+      <input type="text" id="platformOther" placeholder="プラットフォーム名を入力"
+             style="display:none; margin-top:6px">
+    </div>
+
+    <!-- 出品日 -->
+    <div class="memo-row" style="margin-top:10px">
+      <div class="memo-field">
+        <label>&#128228; 出品日</label>
+        <input type="date" id="listingDate">
+      </div>
+      <div class="memo-field"></div>
+    </div>
+
+    <div id="sheetsSendStatus" style="display:none; margin-top:8px; font-size:12px; font-weight:bold;"></div>
+
+    <!-- 保存済みリストパネル -->
+    <div id="saveListPanel" class="save-list-panel" style="display:none">
+      <div class="save-list-hd">
+        <b>&#128194; 保存済みカード一覧 <span class="save-auto-indicator">（自動保存）</span></b>
+        <button class="btn-close-list" onclick="toggleSaveList()">&#10005;</button>
+      </div>
+      <div id="selActionBar" class="sel-action-bar">
+        <span id="selActionCount" class="sel-count-badge">0件選択中</span>
+        <select id="selMoveTarget" style="font-size:12px;font-family:inherit;border:1px solid var(--border);border-radius:6px;padding:3px 8px;"></select>
+        <button class="btn-folder-ok" onclick="moveSelected()">移動</button>
+        <button class="btn-folder-cancel" onclick="clearAllSelection()">選択解除</button>
+      </div>
+      <div id="saveListItems"></div>
+    </div>
+  </div>
+
+  <!-- API設定 -->
+  <div class="api-bar">
+    <div class="api-row">
+      <label>&#128273; Google AI APIキー：</label>
+      <input type="password" id="apiKey" placeholder="AIzaSy..." oninput="onApiKey()">
+      <span id="apiOk" class="api-ok">&#10003; セット済み</span>
+    </div>
+    <div class="api-row">
+      <label>&#129302; モデル：</label>
+      <select id="modelSel">
+        <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite（推奨）</option>
+        <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+        <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash-Lite（安定版）</option>
+        <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+      </select>
+    </div>
+    <div class="api-note">
+      <a href="https://aistudio.google.com/apikey" target="_blank" style="color:var(--blue)">Google AI Studio</a>
+      で無料取得できます。キーはブラウザ内のみ使用・外部サーバー送信なし。
+    </div>
+    <div class="api-row" style="margin-top:10px; padding-top:10px; border-top:1px dashed var(--border)">
+      <label>&#128202; スプレッドシート連携URL：</label>
+      <input type="text" id="sheetsUrl" placeholder="https://script.google.com/macros/s/..." oninput="saveSheetsUrl()" style="flex:1;min-width:200px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:12px;background:#fafbff;">
+      <span id="sheetsUrlOk" class="api-ok">&#10003; セット済み</span>
+    </div>
+    <div class="api-note" style="margin-top:4px">
+      Google Apps Script を使って自分のスプレッドシートに転記します。
+      <a href="#" onclick="showGasHelp();return false;" style="color:var(--blue)">設定方法を見る ↓</a>
+    </div>
+    <div id="gasHelp" style="display:none; margin-top:10px; padding:10px; background:#f0f4ff; border-radius:8px; font-size:12px; line-height:1.7;">
+      <b>【初回セットアップ】</b><br>
+      1. <a href="https://script.google.com" target="_blank" style="color:var(--blue)">script.google.com</a> を開き「新しいプロジェクト」を作成<br>
+      2. 下記のコードをすべて貼り付けて保存（Ctrl+S）<br>
+      3. 「デプロイ」→「新しいデプロイ」→種類「ウェブアプリ」→「アクセスできるユーザー：全員」→「デプロイ」<br>
+      4. 表示された URL をコピーして上の入力欄に貼り付け<br><br>
+      <b style="color:#c00">【コードを変更・貼り替えた場合は必ず再デプロイが必要】</b><br>
+      「デプロイ」→「デプロイを管理」→鉛筆（✏）アイコン→バージョンを「<b>新しいバージョン</b>」に変更→「デプロイ」<br>
+      ※ 保存しただけでは古いコードが動き続けます。再デプロイ後にスプレッドシートへの記録を再テストしてください。<br><br>
+      <b>【Apps Script コード】</b><br>
+      <textarea readonly style="width:100%;height:400px;font-size:11px;font-family:monospace;background:#fff;padding:8px;border:1px solid #ccc;border-radius:4px;">// 指定列の57行目以降で最初の空白行を返す
+function nextRow_(sheet, startRow, checkCol) {
+  var last = sheet.getLastRow();
+  if (last < startRow) return startRow;
+  var vals = sheet.getRange(startRow, checkCol, last - startRow + 1, 1).getValues();
+  for (var i = vals.length - 1; i >= 0; i--) {
+    if (vals[i][0] !== '') return startRow + i + 1;
+  }
+  return startRow;
+}
+
+function doGet(e) {
+  try {
+    var ss = SpreadsheetApp.openById('1WfDKOg1W2yYdEkAckA4MI16vgs-0wBXQruGSHx4_HaA');
+    var d  = JSON.parse(e.parameter.payload);
+
+    // ── 仕入れ表（C列を基準に57行目以降の次の空白行へ追記）──
+    var s1 = ss.getSheetByName('仕入れ表');
+    if (!s1) return out_(e, {status:'error', msg:'シート「仕入れ表」が見つかりません'});
+    var r1 = nextRow_(s1, 57, 3); // C列(SKU)基準
+    s1.getRange(r1,  3).setValue(d.sku);           // C: SKU
+    s1.getRange(r1,  4).setValue(d.purchaseDate);  // D: 仕入れ日
+    s1.getRange(r1,  5).setValue(d.sellerType);    // E: 個人/店舗
+    s1.getRange(r1,  6).setValue(d.purchasePrice); // F: 仕入れ金額
+    s1.getRange(r1,  7).setValue('ポケカ');         // G: 種別
+    s1.getRange(r1,  8).setValue(d.productName);   // H: 商品名
+    s1.getRange(r1,  9).setValue(d.accessories);   // I: 付属品
+    s1.getRange(r1, 15).setValue(d.listingDate);   // O: 出品日
+
+    // ── 古物台帳（I列を基準に57行目以降の次の空白行へ追記）──
+    var s2 = ss.getSheetByName('古物台帳');
+    if (!s2) return out_(e, {status:'error', msg:'シート「古物台帳」が見つかりません'});
+    var r2 = nextRow_(s2, 57, 9); // I列(取引ID)基準
+    var F = "'仕入れ表'!"; // 仕入れ表参照プレフィックス
+    // 数式列（仕入れ表の r1 行を参照）
+    s2.getRange(r2,  1).setFormula('=IF(' + F + 'D' + r1 + '="",' + '"",' + F + 'D' + r1 + ')');  // A: 仕入れ日
+    s2.getRange(r2,  2).setFormula('=IF(' + F + 'C' + r1 + '="",' + '"",' + F + 'C' + r1 + ')');  // B: SKU
+    s2.getRange(r2,  3).setFormula('=IF(ISBLANK(' + F + 'D' + r1 + '),"","買受")');                // C: 取引区分
+    s2.getRange(r2,  4).setFormula('=IF(' + F + 'G' + r1 + '="",' + '"",' + F + 'G' + r1 + ')');  // D
+    s2.getRange(r2,  5).setFormula('=IF(' + F + 'H' + r1 + '="",' + '"",' + F + 'H' + r1 + ')');  // E: 商品名
+    s2.getRange(r2,  6).setValue(1);                                                                // F: 数量
+    s2.getRange(r2,  7).setFormula('=IF(' + F + 'F' + r1 + '="",' + '"",' + F + 'F' + r1 + ')');  // G: 仕入れ金額
+    s2.getRange(r2,  8).setFormula('=IF(' + F + 'C' + r1 + '="",' + '"",' + F + 'E' + r1 + ')');  // H: 個人/店舗
+    // 直接書き込み列
+    s2.getRange(r2,  9).setValue(d.transactionId); // I: 取引ID
+    s2.getRange(r2, 10).setValue(d.address);        // J: 住所
+    s2.getRange(r2, 11).setValue(d.name);           // K: 氏名/URL
+    s2.getRange(r2, 14).setValue(d.platform);       // N: プラットフォーム
+    // 数式列（続き）
+    s2.getRange(r2, 15).setFormula('=IF(' + F + 'P' + r1 + '="",' + '"",' + F + 'P' + r1 + ')');  // O
+    s2.getRange(r2, 16).setFormula('=IF(O' + r2 + '="","","売却")');                               // P: 処分区分
+    s2.getRange(r2, 17).setFormula('=IF(' + F + 'R' + r1 + '="",' + '"",' + F + 'R' + r1 + ')');  // Q
+    s2.getRange(r2, 18).setFormula('=IF(' + F + 'P' + r1 + '="",' + '"",' + F + 'Q' + r1 + ')');  // R
+
+    return out_(e, {status:'ok', sheet1row:r1, sheet2row:r2});
+  } catch(err) {
+    return out_(e, {status:'error', msg:err.toString()});
+  }
+}
+
+function out_(e, obj) {
+  var json = JSON.stringify(obj);
+  var cb = e && e.parameter && e.parameter.callback;
+  if (cb) {
+    // JSONP形式で返す
+    return ContentService.createTextOutput(cb + '(' + json + ')')
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  return ContentService.createTextOutput(json)
+    .setMimeType(ContentService.MimeType.JSON);
+}</textarea>
+      <div style="margin-top:6px; color:#666;">
+        <b>仕入れ表：</b>C=SKU / D=仕入れ日 / E=個人か店舗か / F=仕入れ金額 / G=種別 / H=商品名 / I=付属品 / O=出品日<br>
+        <b>古物台帳：</b>I=取引ID / J=住所 / K=氏名・URL / N=プラットフォーム<br>
+        ※ 両シートとも57行目以降に自動追記されます
+      </div>
+    </div>
+  </div>
+
+  <!-- 1. Title -->
+  <div class="card">
+    <div class="card-hd">
+      <div class="step">1</div>
+      <h2>タイトル生成（スペース含め80文字以内）</h2>
+    </div>
+    <label class="lbl">Sold 履歴タイトルを貼り付け（1行に1タイトル）</label>
+    <div class="hint">単語ごとにボタン表示されます。クリックした順番にタイトルが組み立てられます。複数タイトルに出現する単語は濃い色で表示。</div>
+    <textarea id="soldTitles" rows="5"
+      placeholder="例：&#10;Pokemon Card Charizard ex 199/165 SAR Japanese sv2a 151 PSA 10&#10;Charizard ex SAR 199/165 Pokemon 151 Japanese Card NM&#10;Japanese Pokemon Card Charizard ex SAR 151 sv2a 199/165 Near Mint"></textarea>
+    <div class="row">
+      <button class="btn-gen" onclick="genTitle()">&#10024; 単語を抽出</button>
+    </div>
+    <div id="titleBox" style="display:none">
+      <div class="divider"></div>
+      <label class="lbl">単語ボタン（クリックして追加 / もう一度クリックで取り消し）</label>
+      <div id="wordBtns" class="word-btns-wrap"></div>
+      <div class="row" style="margin-top:6px">
+        <button class="btn-ref" onclick="resetWordBtns()">&#8635; タイトルをリセット</button>
+      </div>
+      <label class="lbl" style="margin-top:12px">タイトル（直接編集も可）</label>
+      <input type="text" id="genTitleIn" maxlength="80" oninput="updCount()">
+      <div class="ccount c-ok" id="ccount">0 / 80文字</div>
+      <div class="row">
+        <button class="btn-ok" onclick="confirmTitle()">&#10003; 確定してテンプレートに反映</button>
+        <span id="titleBadge" class="badge" style="display:none">確定済み</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Grade -->
+  <div class="card">
+    <div class="card-hd">
+      <div class="step">2</div>
+      <h2>カードのグレード（4段階）</h2>
+    </div>
+    <div class="grade-grid">
+      <div class="gc" onclick="selGrade(this,'Near Mint')">
+        <div class="gn">Near Mint</div><div class="gj">ほぼ完璧</div>
+      </div>
+      <div class="gc" onclick="selGrade(this,'Lightly Played')">
+        <div class="gn">Lightly Played</div><div class="gj">軽微な使用感</div>
+      </div>
+      <div class="gc" onclick="selGrade(this,'Moderately Played')">
+        <div class="gn">Moderately Played</div><div class="gj">使用感あり</div>
+      </div>
+      <div class="gc" onclick="selGrade(this,'Heavily Played')">
+        <div class="gn">Heavily Played</div><div class="gj">かなりの使用感</div>
+      </div>
+    </div>
+    <div id="gradeBadge" class="badge" style="display:none;margin-top:10px"></div>
+  </div>
+
+  <!-- 3. Appearance -->
+  <div class="card">
+    <div class="card-hd">
+      <div class="step">3</div>
+      <h2>状態の詳細（Appearance）</h2>
+    </div>
+    <label class="lbl">日本語で箇条書き（1行に1項目）</label>
+    <div class="hint">英訳してテンプレートの Appearance 欄に反映されます。</div>
+    <textarea id="appJa" rows="4"
+      placeholder="例：&#10;表面にごく細かいスクラッチあり&#10;角にわずかな白欠けあり&#10;全体的に状態は良好"></textarea>
+    <div class="row">
+      <button class="btn-tl" onclick="doTranslate('app')">&#127760; 英訳してプレビュー</button>
+      <span id="appSpin" class="spin">翻訳中...</span>
+    </div>
+    <div id="appPrev" style="display:none;margin-top:12px">
+      <div class="prev">
+        <div class="pl">翻訳結果（修正可）</div>
+        <textarea id="appEn" rows="4"></textarea>
+      </div>
+      <div class="row">
+        <button class="btn-ok" onclick="confirmSec('app')">&#10003; テンプレートに反映</button>
+        <span id="appBadge" class="badge" style="display:none">反映済み</span>
+      </div>
+    </div>
+    <div class="net-note">※ 翻訳にはページ上部の Google AI APIキーが必要です。</div>
+  </div>
+
+  <!-- 4. Included -->
+  <div class="card">
+    <div class="card-hd">
+      <div class="step">4</div>
+      <h2>付属品（Included）</h2>
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;margin-bottom:12px">
+      <input type="checkbox" id="noInc" onchange="toggleInc()" style="width:16px;height:16px;cursor:pointer">
+      付属品なし（Included セクション全体を削除）
+    </label>
+    <div id="incSection">
+      <label class="lbl">日本語で箇条書き（1行に1項目）</label>
+      <div class="hint">英訳してテンプレートの Included 欄に反映されます。</div>
+      <textarea id="incJa" rows="3"
+        placeholder="例：&#10;スリーブ1枚&#10;トップローダー"></textarea>
+      <div class="row">
+        <button class="btn-tl" onclick="doTranslate('inc')">&#127760; 英訳してプレビュー</button>
+        <span id="incSpin" class="spin">翻訳中...</span>
+      </div>
+      <div id="incPrev" style="display:none;margin-top:12px">
+        <div class="prev">
+          <div class="pl">翻訳結果（修正可）</div>
+          <textarea id="incEn" rows="3"></textarea>
+        </div>
+        <div class="row">
+          <button class="btn-ok" onclick="confirmSec('inc')">&#10003; テンプレートに反映</button>
+          <span id="incBadge" class="badge" style="display:none">反映済み</span>
+        </div>
+      </div>
+      <div class="net-note">※ 翻訳にはページ上部の Google AI APIキーが必要です。</div>
+    </div>
+  </div>
+
+  <!-- 5. Template -->
+  <div class="card">
+    <div class="card-hd">
+      <div class="step">5</div>
+      <h2>出品テンプレート（コピー）</h2>
+    </div>
+    <div class="hint">各項目を確定すると自動更新されます。eBay の HTML エディタに貼り付けてください。</div>
+    <div class="row" style="margin-bottom:10px">
+      <button class="btn-ref" onclick="buildTpl()">&#128260; 今すぐ更新</button>
+    </div>
+    <textarea class="tpl-out" id="tplOut" readonly></textarea>
+    <button class="btn-copy" onclick="copyTpl()">&#128203; テンプレートを全コピー</button>
+    <div class="copy-ok" id="copyOk">&#10003; クリップボードにコピーしました！</div>
+  </div>
+
+  <!-- 6. Item Specifics -->
+  <div class="card" id="specsCard" style="display:none">
+    <div class="card-hd">
+      <div class="step">6</div>
+      <h2>eBay 商品詳細項目（自動生成）</h2>
+      <button class="btn-ref" style="margin-left:auto;font-size:12px;padding:5px 12px" onclick="genSpecs(S.title)" title="再生成">&#128260; 再生成</button>
+    </div>
+    <div class="hint">タイトル確定と同時に Gemini AI が各項目を生成します。eBay の「商品の詳細」フォームに順番に貼り付けてください。</div>
+    <div id="specsLoading" class="specs-loading" style="display:none">Gemini AI が商品詳細を分析中...</div>
+    <div id="specsError" class="specs-error" style="display:none"></div>
+    <div id="specsResults" style="display:none">
+      <div class="row" style="margin: 10px 0 4px">
+        <button class="btn-copy-all-specs" onclick="copyAllSpecs()">&#128203; 全項目をまとめてコピー</button>
+        <span id="specsCopyOk" class="badge" style="display:none">&#10003; コピーしました</span>
+      </div>
+      <div id="specsContainer"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+var S = { title:'', grade:'', app:[], inc:[], noInc:false };
+
+// ── 初期化（localStorage から復元） ──────────────────────
+(function init() {
+  var su = localStorage.getItem('gsheet_script_url') || '';
+  if (su) {
+    document.getElementById('sheetsUrl').value = su;
+    document.getElementById('sheetsUrlOk').style.display = 'inline';
+  }
+  // 保存件数を表示
+  updateSaveCount();
+  initFolderSel();
+  // ★「保存済み」ボタン — onclick属性に頼らず直接バインド
+  var saveBtn = document.getElementById('saveListBtn');
+  if (saveBtn) {
+    saveBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      toggleSaveList();
+    });
+  }
+  // メモカード内の入力変化で自動保存
+  document.querySelector('.memo-card').addEventListener('input', scheduleAutoSave);
+  // チップ・グレード・確定ボタンのクリックで自動保存
+  document.querySelector('.container').addEventListener('click', function(ev) {
+    var t = ev.target;
+    if (t.classList.contains('pc')     || t.classList.contains('stc') ||
+        t.classList.contains('adc')    || t.classList.contains('gc')  ||
+        t.classList.contains('btn-ok') || t.classList.contains('btn-ref')) {
+      scheduleAutoSave();
+    }
+  });
+})();
+
+// ── スプレッドシート連携URL保存 ───────────────────────────
+function saveSheetsUrl() {
+  var v = document.getElementById('sheetsUrl').value.trim();
+  localStorage.setItem('gsheet_script_url', v);
+  document.getElementById('sheetsUrlOk').style.display = v ? 'inline' : 'none';
+}
+
+function showGasHelp() {
+  var el = document.getElementById('gasHelp');
+  el.style.display = el.style.display === 'none' ? '' : 'none';
+}
+
+// ── 個人 / 店舗 選択 ─────────────────────────────────────
+var S_SELLER_TYPE = '';
+function selSellerType(el, val) {
+  document.querySelectorAll('.stc').forEach(function(c){ c.classList.remove('active'); });
+  el.classList.add('active');
+  S_SELLER_TYPE = val;
+}
+
+// ── 住所 選択 ────────────────────────────────────────────
+var S_ADDRESS_TYPE = '';
+function selAddress(el, val) {
+  document.querySelectorAll('.adc').forEach(function(c){ c.classList.remove('active'); });
+  el.classList.add('active');
+  S_ADDRESS_TYPE = val;
+  document.getElementById('sellerAddress').style.display = val === '住所入力' ? '' : 'none';
+  if (val === '匿名発送') document.getElementById('sellerAddress').value = '';
+}
+
+// ── 購入プラットフォーム選択 ─────────────────────────────
+var S_PLATFORM = '';
+function selPlatform(el, val) {
+  document.querySelectorAll('.pc').forEach(function(c){ c.classList.remove('active'); });
+  el.classList.add('active');
+  S_PLATFORM = val;
+  document.getElementById('platformOther').style.display = val === 'その他' ? '' : 'none';
+}
+
+// ── スプレッドシートに記録 ────────────────────────────────
+function sendToSheets() {
+  var url = localStorage.getItem('gsheet_script_url') || '';
+  var statusEl = document.getElementById('sheetsSendStatus');
+  if (!url || !url.startsWith('https://')) {
+    statusEl.textContent  = '⚠️ Apps Script の URL が未設定です。APIバーの「スプレッドシート連携URL」に入力してください。';
+    statusEl.style.color  = 'var(--red)';
+    statusEl.style.display = '';
+    return;
+  }
+  var platform = S_PLATFORM;
+  if (platform === 'その他') {
+    platform = document.getElementById('platformOther').value.trim() || 'その他';
+  }
+  var data = {
+    timestamp:     new Date().toLocaleString('ja-JP'),
+    productName:   document.getElementById('productName').value.trim(),
+    accessories:   document.getElementById('accessories').value.trim(),
+    sku:           document.getElementById('skuNumber').value.trim(),
+    purchaseDate:  document.getElementById('purchaseDate').value,
+    purchasePrice: document.getElementById('purchasePrice').value,
+    transactionId: document.getElementById('transactionId').value.trim(),
+    name:          document.getElementById('sellerName').value.trim(),
+    address:       S_ADDRESS_TYPE === '匿名発送' ? '匿名発送' : document.getElementById('sellerAddress').value.trim(),
+    sellerType:    S_SELLER_TYPE,
+    platform:      platform,
+    listingDate:   document.getElementById('listingDate').value,
+    title:         S.title
+  };
+  var btn = document.getElementById('memoSendBtn');
+  btn.disabled    = true;
+  btn.textContent = '送信中...';
+  statusEl.style.display = 'none';
+
+  // JSONP で送信（file://からでもレスポンスを読める）
+  var cbName = 'gasCallback_' + Date.now();
+  var script = document.createElement('script');
+  var timer = setTimeout(function() {
+    cleanup();
+    btn.disabled    = false;
+    btn.textContent = '📤 スプレッドシートに記録';
+    statusEl.textContent  = '❌ タイムアウト：通信に失敗しました。URLとデプロイ設定を確認してください。';
+    statusEl.style.color  = 'var(--red)';
+    statusEl.style.display = '';
+  }, 15000);
+
+  function cleanup() {
+    clearTimeout(timer);
+    delete window[cbName];
+    if (script.parentNode) script.parentNode.removeChild(script);
+  }
+
+  window[cbName] = function(res) {
+    cleanup();
+    btn.disabled    = false;
+    btn.textContent = '📤 スプレッドシートに記録';
+    if (res && res.status === 'ok') {
+      statusEl.textContent  = '✅ 記録しました（仕入れ表:' + res.sheet1row + '行目 / 古物台帳:' + res.sheet2row + '行目）';
+      statusEl.style.color  = 'var(--green)';
+      // 現在の保存エントリに記録済みフラグを付ける
+      var currentKey = LAST_SAVE_KEY || getSaveKey();
+      var ridx = JSON.parse(localStorage.getItem('pokeca_index') || '[]');
+      for (var ri = 0; ri < ridx.length; ri++) {
+        if (ridx[ri].key === currentKey) {
+          ridx[ri].recorded   = true;
+          ridx[ri].recordedAt = new Date().toLocaleString('ja-JP');
+          break;
+        }
+      }
+      localStorage.setItem('pokeca_index', JSON.stringify(ridx));
+    } else {
+      statusEl.textContent  = '❌ GASエラー: ' + (res && res.msg ? res.msg : '不明なエラー');
+      statusEl.style.color  = 'var(--red)';
+    }
+    statusEl.style.display = '';
+  };
+
+  script.onerror = function() {
+    cleanup();
+    btn.disabled    = false;
+    btn.textContent = '📤 スプレッドシートに記録';
+    statusEl.textContent  = '❌ 通信エラー：スクリプトURLを確認してください。';
+    statusEl.style.color  = 'var(--red)';
+    statusEl.style.display = '';
+  };
+
+  script.src = url + '?callback=' + cbName + '&payload=' + encodeURIComponent(JSON.stringify(data));
+  document.head.appendChild(script);
+}
+
+// ── SKU 自動生成 ──────────────────────────────────────────
+function updSKU() {
+  var d   = document.getElementById('skuDate').value.trim();
+  var loc = document.getElementById('skuLoc').value.trim();
+  var c   = document.getElementById('skuCard').value.trim();
+  var sku = d + loc + c;
+  document.getElementById('skuNumber').value = sku;
+  var disp = document.getElementById('skuDisplay');
+  if (sku) {
+    disp.textContent = sku;
+    disp.classList.remove('empty');
+  } else {
+    disp.textContent = '未入力';
+    disp.classList.add('empty');
+  }
+}
+
+function copySKU() {
+  var sku = document.getElementById('skuNumber').value;
+  if (!sku) return;
+  navigator.clipboard.writeText(sku).then(function() {
+    var btn = event.target;
+    var orig = btn.textContent;
+    btn.textContent = '✓';
+    setTimeout(function(){ btn.textContent = orig; }, 1400);
+  });
+}
+
+// 出品日ピッカーを変えたら skuDate へ YYMMDD で自動入力
+function syncSkuDate() {
+  var v = document.getElementById('listingDate').value; // YYYY-MM-DD
+  if (!v) return;
+  var yymmdd = v.slice(2,4) + v.slice(5,7) + v.slice(8,10);
+  document.getElementById('skuDate').value = yymmdd;
+  updSKU();
+}
+
+// ── メモ欄：タブ名更新 ────────────────────────────────────
+function updTab() {
+  var name = document.getElementById('productName').value.trim();
+  document.title = name ? name + ' — ポケカ出品ツール' : 'eBay ポケカ出品ツール';
+  var badge = document.getElementById('tabLive');
+  badge.style.display = name ? '' : 'none';
+}
+
+// ── 1. Title ──────────────────────────────────────────────
+function genTitle() {
+  var raw = document.getElementById('soldTitles').value.trim();
+  if (!raw) { alert('タイトルを入力してください。'); return; }
+  var lines = raw.split('\n').map(function(s){ return s.trim(); }).filter(Boolean);
+  var stop = { the:1, a:1, an:1, and:1, or:1, of:1, in:1, 'for':1, to:1, is:1,
+               it:1, on:1, at:1, by:1, with:1, from:1, card:1, cards:1 };
+  var map = {};
+  lines.forEach(function(line, li) {
+    (line.match(/No\.\S+|[^\s\/\-,\(\).]+/g) || []).forEach(function(w, wi) {
+      if (!w) return;
+      var key = w.toLowerCase();
+      if (stop[key] || /^\d{1,2}$/.test(key)) return;
+      if (map[key]) { map[key].count++; }
+      else { map[key] = { form: w, count: 1, order: li * 10000 + wi }; }
+    });
+  });
+  // 出現頻度降順 → 初出順
+  var sorted = Object.values(map).sort(function(a, b) {
+    return b.count !== a.count ? b.count - a.count : a.order - b.order;
+  });
+
+  // 1行のみの場合はそのままタイトル欄に入れて即確定できるようにする
+  document.getElementById('genTitleIn').value = lines.length === 1 ? lines[0].slice(0, 80) : '';
+  updCount();
+  var wrap = document.getElementById('wordBtns');
+  wrap.innerHTML = '';
+  sorted.forEach(function(e) {
+    var btn = document.createElement('button');
+    btn.className = 'word-btn' + (e.count > 1 ? ' freq-hi' : '');
+    btn.textContent = e.form;
+    btn.title = e.count + '件のタイトルに出現';
+    btn.addEventListener('click', function() { clickWordBtn(e.form, btn); });
+    wrap.appendChild(btn);
+  });
+
+  document.getElementById('titleBox').style.display = 'block';
+  document.getElementById('titleBadge').style.display = 'none';
+}
+
+function clickWordBtn(word, btn) {
+  var inp = document.getElementById('genTitleIn');
+  if (btn.classList.contains('used')) {
+    // 取り消し：タイトルから該当単語を末尾から1つ削除
+    var words = inp.value.split(' ');
+    var idx = words.lastIndexOf(word);
+    if (idx !== -1) words.splice(idx, 1);
+    inp.value = words.join(' ');
+    btn.classList.remove('used');
+  } else {
+    // 追加
+    var cur = inp.value.trim();
+    inp.value = cur ? cur + ' ' + word : word;
+    btn.classList.add('used');
+  }
+  updCount();
+}
+
+function resetWordBtns() {
+  document.getElementById('genTitleIn').value = '';
+  updCount();
+  document.querySelectorAll('#wordBtns .word-btn.used').forEach(function(b) {
+    b.classList.remove('used');
+  });
+}
+
+function updCount() {
+  var v = document.getElementById('genTitleIn').value;
+  var el = document.getElementById('ccount');
+  el.textContent = v.length + ' / 80文字';
+  el.className = 'ccount ' + (v.length > 80 ? 'c-ng' : 'c-ok');
+}
+
+function confirmTitle() {
+  var v = document.getElementById('genTitleIn').value.trim();
+  if (!v) { alert('タイトルを入力してください。'); return; }
+  if (v.length > 80) { alert('80文字以内にしてください。'); return; }
+  S.title = v;
+  document.getElementById('titleBadge').style.display = 'inline-block';
+  buildTpl();
+  genSpecs(v);          // ← Step 6: 商品詳細項目を同時生成
+}
+
+// ── 2. Grade ──────────────────────────────────────────────
+function selGrade(el, grade) {
+  document.querySelectorAll('.gc').forEach(function(c){ c.classList.remove('active'); });
+  el.classList.add('active');
+  S.grade = grade;
+  var b = document.getElementById('gradeBadge');
+  b.style.display = 'inline-block';
+  b.textContent = '✅ ' + grade;
+  buildTpl();
+}
+
+// ── API key ───────────────────────────────────────────────
+function onApiKey() {
+  var v = document.getElementById('apiKey').value.trim();
+  document.getElementById('apiOk').style.display = v ? 'inline' : 'none';
+}
+
+// ── 3 & 4. Translation (Gemini 2.5 Flash-Lite) ──────────
+var GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
+
+var TRANSLATE_SYSTEM =
+  'You are an expert Pokemon Trading Card Game (TCG) translator for eBay listings. '
+  + 'Translate the following Japanese text into natural English using official Pokemon TCG English names and standard card grading terminology. '
+  + 'Key terms: 白欠け/白かけ→edge wear, スレ/スレキズ→scuff marks, スクラッチ/スリキズ→scratches, '
+  + 'ホイル/キラ→holo, 反り→warping, シワ/折れ→crease, 黄ばみ→yellowing, 表面→surface, 裏面→back, '
+  + '角→corners, 端→edges, 印刷ムラ→printing irregularity, インデント→indent, '
+  + 'トップローダー→top loader, スリーブ→sleeve, マグネット→magnetic case, '
+  + 'リザードン→Charizard, ピカチュウ→Pikachu, ミュウツー→Mewtwo, ミュウ→Mew, '
+  + 'カスミのなみだ→Misty\'s Tears, ルギア→Lugia, ホウオウ→Ho-Oh, レックウザ→Rayquaza. '
+  + 'Return ONLY the translated text, one line per input line, no extra explanation.';
+
+async function doTranslate(type) {
+  var jaId   = type === 'app' ? 'appJa'   : 'incJa';
+  var spinId = type === 'app' ? 'appSpin'  : 'incSpin';
+  var prevId = type === 'app' ? 'appPrev'  : 'incPrev';
+  var enId   = type === 'app' ? 'appEn'    : 'incEn';
+  var badId  = type === 'app' ? 'appBadge' : 'incBadge';
+
+  var key = document.getElementById('apiKey').value.trim();
+  if (!key) { alert('Google AI APIキーを入力してください（ページ上部）。'); return; }
+  var raw = document.getElementById(jaId).value.trim();
+  if (!raw) { alert('内容を入力してください。'); return; }
+  var model = document.getElementById('modelSel').value;
+  var endpoint = GEMINI_BASE + model + ':generateContent?key=' + encodeURIComponent(key);
+
+  document.getElementById(spinId).style.display = 'inline';
+  try {
+    var resp = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: TRANSLATE_SYSTEM }] },
+        contents: [{ parts: [{ text: raw }] }],
+        generationConfig: { maxOutputTokens: 1024, temperature: 0.1 }
+      })
+    });
+    if (!resp.ok) {
+      var err = await resp.json().catch(function(){ return {}; });
+      var msg = (err.error && err.error.message) || 'エラー ' + resp.status;
+      throw new Error(msg);
+    }
+    var j = await resp.json();
+    var text = j.candidates[0].content.parts[0].text.trim();
+    document.getElementById(enId).value = text;
+    document.getElementById(prevId).style.display = 'block';
+    document.getElementById(badId).style.display = 'none';
+  } catch(e) {
+    alert('翻訳エラー: ' + e.message);
+  }
+  document.getElementById(spinId).style.display = 'none';
+}
+
+function confirmSec(type) {
+  var enId  = type === 'app' ? 'appEn'    : 'incEn';
+  var badId = type === 'app' ? 'appBadge' : 'incBadge';
+  var val = document.getElementById(enId).value.trim();
+  if (!val) { alert('翻訳結果を確認してください。'); return; }
+  S[type] = val.split('\n').map(function(s){ return s.trim(); }).filter(Boolean);
+  document.getElementById(badId).style.display = 'inline-block';
+  buildTpl();
+}
+
+function toggleInc() {
+  S.noInc = document.getElementById('noInc').checked;
+  document.getElementById('incSection').style.display = S.noInc ? 'none' : 'block';
+  buildTpl();
+}
+
+// ── 5. Template ──────────────────────────────────────────
+function liList(arr, ph) {
+  if (!arr.length) return '<li>' + ph + '</li>';
+  return arr.map(function(s){ return '<li>' + s + '</li>'; }).join('');
+}
+
+function incBlock() {
+  if (S.noInc) return '';
+  return '\n      <div class="main__item">\n        <h3 class="pBottom-10">Included</h3>'
+    + '<div class="product__intro" property="description"><ol>'
+    + liList(S.inc, '(付属品を入力・英訳してください)')
+    + '</ol>\n        </div>\n      </div>';
+}
+
+// ── 自動保存・復元 ────────────────────────────────────────
+
+// セッション内でPAGE_IDを固定（リロードしても同じキーを使う）
+// 新規作成ボタン経由で開いた場合はハッシュ #new が付くので強制的に新しいIDを生成する
+// （window.open は親の sessionStorage をコピーするため、ハッシュで区別が必要）
+var PAGE_ID;
+if (/^#new/.test(location.hash)) {
+  history.replaceState(null, '', location.pathname + location.search);
+  PAGE_ID = 'draft_' + Date.now().toString(36);
+} else {
+  PAGE_ID = sessionStorage.getItem('pokeca_pid') || ('draft_' + Date.now().toString(36));
+}
+sessionStorage.setItem('pokeca_pid', PAGE_ID);
+var LAST_SAVE_KEY = null; // キー変化時（ドラフト→SKU）の古エントリ自動削除用
+var SELECTED_KEYS = {}; // 選択中アイテムのキーセット
+var autoSaveTimer = null;
+
+function scheduleAutoSave() {
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(autoSave, 700);
+}
+
+function getSaveKey() {
+  var sku = (document.getElementById('skuNumber').value || '').trim();
+  if (sku) return 'pokeca_' + sku;
+  return LAST_SAVE_KEY || ('pokeca_' + PAGE_ID);
+}
+
+function captureState() {
+  return {
+    _savedAt:      new Date().toLocaleString('ja-JP'),
+    productName:   (document.getElementById('productName').value   || ''),
+    skuDate:       (document.getElementById('skuDate').value       || ''),
+    skuLoc:        (document.getElementById('skuLoc').value        || ''),
+    skuCard:       (document.getElementById('skuCard').value       || ''),
+    sku:           (document.getElementById('skuNumber').value     || ''),
+    purchaseDate:  (document.getElementById('purchaseDate').value  || ''),
+    purchasePrice: (document.getElementById('purchasePrice').value || ''),
+    transactionId: (document.getElementById('transactionId').value || ''),
+    sellerName:    (document.getElementById('sellerName').value    || ''),
+    sellerAddress: (document.getElementById('sellerAddress').value || ''),
+    listingDate:   (document.getElementById('listingDate').value   || ''),
+    platform:      S_PLATFORM,
+    platformOther: (document.getElementById('platformOther').value || ''),
+    sellerType:    S_SELLER_TYPE,
+    addressType:   S_ADDRESS_TYPE,
+    titleInput:    (document.getElementById('genTitleIn').value    || ''),
+    title:   S.title,
+    grade:   S.grade,
+    appJa:   (document.getElementById('appJa').value || ''),
+    appEn:   (document.getElementById('appEn').value || ''),
+    app:     S.app,
+    incJa:   (document.getElementById('incJa').value || ''),
+    incEn:   (document.getElementById('incEn').value || ''),
+    inc:     S.inc,
+    noInc:   S.noInc
+  };
+}
+
+function autoSave() {
+  var state = captureState();
+  if (!state.productName && !state.sku && !state.title && !state.titleInput) return;
+  var newKey = getSaveKey();
+
+  // キーが変わった場合（ドラフト → SKU入力後など）は古いエントリを削除して重複を防ぐ
+  if (LAST_SAVE_KEY && newKey !== LAST_SAVE_KEY) {
+    localStorage.removeItem(LAST_SAVE_KEY);
+    var idx2 = JSON.parse(localStorage.getItem('pokeca_index') || '[]');
+    localStorage.setItem('pokeca_index', JSON.stringify(idx2.filter(function(e){ return e.key !== LAST_SAVE_KEY; })));
+  }
+  LAST_SAVE_KEY = newKey;
+
+  localStorage.setItem(newKey, JSON.stringify(state));
+  var index = JSON.parse(localStorage.getItem('pokeca_index') || '[]');
+  var pos = -1;
+  for (var i = 0; i < index.length; i++) { if (index[i].key === newKey) { pos = i; break; } }
+  var entry = { key: newKey, productName: state.productName || '（名称未設定）', sku: state.sku, savedAt: state._savedAt };
+  if (pos >= 0) {
+    if (index[pos].recorded)   entry.recorded   = index[pos].recorded;
+    if (index[pos].recordedAt) entry.recordedAt = index[pos].recordedAt;
+    entry.folder = index[pos].folder || getCurrentFolder(); // 既存フォルダを引き継ぐ
+    index[pos] = entry;
+  } else {
+    entry.folder = getCurrentFolder(); // 新規エントリは現在のフォルダに入れる
+    index.unshift(entry);
+  }
+  localStorage.setItem('pokeca_index', JSON.stringify(index));
+  updateSaveCount();
+}
+
+function updateSaveCount() {
+  var index = JSON.parse(localStorage.getItem('pokeca_index') || '[]');
+  document.getElementById('saveCount').textContent = index.length;
+}
+
+function toggleSaveList() {
+  var panel = document.getElementById('saveListPanel');
+  if (!panel) return;
+  if (panel.style.display === 'none') {
+    panel.style.display = 'block';
+    renderSaveList();
+  } else {
+    panel.style.display = 'none';
+  }
+}
+
+function renderSaveList() {
+  var index;
+  try { index = JSON.parse(localStorage.getItem('pokeca_index') || '[]'); }
+  catch(e) { index = []; }
+  var con = document.getElementById('saveListItems');
+  if (!con) return;
+
+  if (!index.length) {
+    con.innerHTML = '<div style="color:#aaa;font-size:12px;padding:6px 0">保存済みのカードはまだありません</div>';
+    return;
+  }
+
+  con.innerHTML = '';
+
+  // 一括削除ボタン
+  var clearWrap = document.createElement('div');
+  clearWrap.style.cssText = 'text-align:right;margin-bottom:8px;';
+  var clearBtn = document.createElement('button');
+  clearBtn.textContent = '🗑 リストをすべてクリア';
+  clearBtn.style.cssText = 'font-size:11px;padding:3px 10px;border:1px solid #f0a0a0;background:#fff5f5;color:#c00;border-radius:6px;cursor:pointer;font-family:inherit;';
+  clearBtn.onclick = function() {
+    if (!confirm('保存済みリストをすべて削除しますか？\n（元に戻せません）')) return;
+    index.forEach(function(e){ if(e&&e.key) localStorage.removeItem(e.key); });
+    localStorage.removeItem('pokeca_index');
+    LAST_SAVE_KEY = null;
+    updateSaveCount();
+    renderSaveList();
+  };
+  clearWrap.appendChild(clearBtn);
+  con.appendChild(clearWrap);
+
+  // フォルダ別にグループ化
+  var folderMap = {}, folderOrder = [];
+  index.forEach(function(e) {
+    var f = e.folder || '未分類';
+    if (!folderMap[f]) { folderMap[f] = []; folderOrder.push(f); }
+    folderMap[f].push(e);
+  });
+
+  // 折りたたみ状態
+  var collapsed;
+  try { collapsed = JSON.parse(localStorage.getItem('pokeca_folders_col') || '{}'); }
+  catch(e) { collapsed = {}; }
+
+  var safe = function(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+  // エントリのあるフォルダ ＋ folderSel に登録済みのフォルダを合わせた全フォルダリスト
+  var allFolders = folderOrder.slice();
+  var selEl = document.getElementById('folderSel');
+  if (selEl) {
+    for (var si = 0; si < selEl.options.length; si++) {
+      var sv = selEl.options[si].value;
+      if (sv && sv !== '__new__' && allFolders.indexOf(sv) === -1) allFolders.push(sv);
+    }
+  }
+
+  folderOrder.forEach(function(folder) {
+    var entries = folderMap[folder];
+    var isCol   = !!collapsed[folder];
+
+    var folderDiv = document.createElement('div');
+    folderDiv.className = 'save-folder';
+
+    // フォルダヘッダー（クリックで折りたたみ）
+    var hd = document.createElement('div');
+    hd.className = 'save-folder-hd';
+
+    // 全選択チェックボックス
+    var allInFolder = entries.length > 0 && entries.every(function(e) { return SELECTED_KEYS[e.key]; });
+    var selAllCb = document.createElement('input');
+    selAllCb.type = 'checkbox';
+    selAllCb.className = 'folder-sel-all';
+    selAllCb.checked = allInFolder;
+    selAllCb.title = 'このフォルダを全選択';
+    selAllCb.onclick = function(ev) { ev.stopPropagation(); };
+    selAllCb.onchange = (function(es) { return function() {
+      var chk = selAllCb.checked;
+      es.forEach(function(e) { SELECTED_KEYS[e.key] = chk; });
+      renderSaveList();
+    }; })(entries);
+    hd.appendChild(selAllCb);
+
+    var hdLabel = document.createElement('span');
+    hdLabel.style.flex = '1';
+    hdLabel.innerHTML = (isCol ? '&#9654;' : '&#9660;') + ' &#128193; '
+      + safe(folder) + ' <span class="save-folder-count">（' + entries.length + '件）</span>';
+    hdLabel.onclick = (function(f){ return function() {
+      collapsed[f] = !collapsed[f];
+      localStorage.setItem('pokeca_folders_col', JSON.stringify(collapsed));
+      renderSaveList();
+    }; })(folder);
+    hd.appendChild(hdLabel);
+
+    // 名前変更ボタン
+    var renBtn = document.createElement('button');
+    renBtn.className = 'btn-folder-action';
+    renBtn.textContent = '✏ 名前変更';
+    renBtn.onclick = (function(f){ return function(ev) {
+      ev.stopPropagation(); renameFolder(f);
+    }; })(folder);
+    hd.appendChild(renBtn);
+
+    // 全件移動ドロップダウン（フォルダが2つ以上ある場合のみ）
+    if (allFolders.length > 1) {
+      var bulkSel = document.createElement('select');
+      bulkSel.className = 'folder-bulk-sel';
+      var bDef = document.createElement('option');
+      bDef.value = ''; bDef.textContent = '↪ 全件移動...';
+      bulkSel.appendChild(bDef);
+      allFolders.forEach(function(f) {
+        if (f === folder) return;
+        var o = document.createElement('option');
+        o.value = f; o.textContent = f;
+        bulkSel.appendChild(o);
+      });
+      bulkSel.onclick = function(ev) { ev.stopPropagation(); };
+      bulkSel.onchange = (function(f){ return function() {
+        if (!bulkSel.value) return;
+        bulkMoveFolder(f, bulkSel.value);
+      }; })(folder);
+      hd.appendChild(bulkSel);
+    }
+
+    folderDiv.appendChild(hd);
+
+    if (!isCol) {
+      var itemsDiv = document.createElement('div');
+      itemsDiv.className = 'save-folder-items';
+
+      entries.forEach(function(e) {
+        if (!e || !e.key) return;
+        try {
+          var div = document.createElement('div');
+          div.className = 'save-item' + (e.recorded ? ' recorded' : '');
+
+          // チェックボックス
+          var cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.className = 'save-item-check';
+          cb.checked = !!SELECTED_KEYS[e.key];
+          cb.onclick = function(ev) { ev.stopPropagation(); };
+          cb.onchange = (function(k) { return function() {
+            SELECTED_KEYS[k] = cb.checked;
+            updateSelActionBar();
+          }; })(e.key);
+          div.appendChild(cb);
+
+          // コンテンツ本体
+          var body = document.createElement('div');
+          body.className = 'save-item-body';
+
+          var nameDiv = document.createElement('div');
+          nameDiv.className = 'save-item-name';
+          nameDiv.textContent = e.productName || '（名称未設定）';
+          if (e.recorded) {
+            var badge = document.createElement('span');
+            badge.className = 'save-recorded-badge';
+            badge.textContent = '✅ 記録済み';
+            nameDiv.appendChild(badge);
+          }
+
+          var metaDiv = document.createElement('div');
+          metaDiv.className = 'save-item-meta';
+          metaDiv.innerHTML = (e.sku ? 'SKU: <b>' + safe(e.sku) + '</b> &nbsp;|&nbsp; ' : '')
+            + '保存: ' + safe(e.savedAt || '')
+            + (e.recordedAt ? ' &nbsp;|&nbsp; 記録: ' + safe(e.recordedAt) : '');
+
+          var btnsDiv = document.createElement('div');
+          btnsDiv.className = 'save-item-btns';
+
+          var loadBtn = document.createElement('button');
+          loadBtn.className = 'btn-save-load';
+          loadBtn.innerHTML = '&#128194; 読み込む';
+          loadBtn.onclick = (function(k){ return function(){ loadSave(k); }; })(e.key);
+
+          // フォルダ移動セレクト（フォルダが2つ以上あるときだけ表示）
+          if (allFolders.length > 1) {
+            var moveSel = document.createElement('select');
+            moveSel.className = 'folder-move-sel';
+            var defOpt = document.createElement('option');
+            defOpt.value = ''; defOpt.textContent = '📁 移動...';
+            moveSel.appendChild(defOpt);
+            allFolders.forEach(function(f) {
+              if (f === folder) return;
+              var opt = document.createElement('option');
+              opt.value = f; opt.textContent = f;
+              moveSel.appendChild(opt);
+            });
+            moveSel.onchange = (function(k){ return function() {
+              if (!moveSel.value) return;
+              moveSaveFolder(k, moveSel.value);
+            }; })(e.key);
+            btnsDiv.appendChild(loadBtn);
+            btnsDiv.appendChild(moveSel);
+          } else {
+            btnsDiv.appendChild(loadBtn);
+          }
+
+          var delBtn = document.createElement('button');
+          delBtn.className = 'btn-save-del';
+          delBtn.innerHTML = '&#128465; 削除';
+          delBtn.onclick = (function(k){ return function(){ deleteSave(k); }; })(e.key);
+          btnsDiv.appendChild(delBtn);
+
+          body.appendChild(nameDiv);
+          body.appendChild(metaDiv);
+          body.appendChild(btnsDiv);
+          div.appendChild(body);
+          itemsDiv.appendChild(div);
+        } catch(err) {}
+      });
+      folderDiv.appendChild(itemsDiv);
+    }
+    con.appendChild(folderDiv);
+  });
+
+  updateSelActionBar();
+}
+
+function updateSelActionBar() {
+  var bar = document.getElementById('selActionBar');
+  var countEl = document.getElementById('selActionCount');
+  var targetSel = document.getElementById('selMoveTarget');
+  if (!bar || !countEl || !targetSel) return;
+
+  var keys = Object.keys(SELECTED_KEYS).filter(function(k) { return SELECTED_KEYS[k]; });
+  if (!keys.length) { bar.style.display = 'none'; return; }
+
+  bar.style.display = 'flex';
+  countEl.textContent = keys.length + '件選択中';
+
+  var index;
+  try { index = JSON.parse(localStorage.getItem('pokeca_index') || '[]'); }
+  catch(e) { index = []; }
+  var allFolders = [];
+  index.forEach(function(e) {
+    var f = e.folder || '未分類';
+    if (allFolders.indexOf(f) === -1) allFolders.push(f);
+  });
+  var selEl = document.getElementById('folderSel');
+  if (selEl) {
+    for (var si = 0; si < selEl.options.length; si++) {
+      var sv = selEl.options[si].value;
+      if (sv && sv !== '__new__' && allFolders.indexOf(sv) === -1) allFolders.push(sv);
+    }
+  }
+  targetSel.innerHTML = '';
+  var defOpt = document.createElement('option');
+  defOpt.value = ''; defOpt.textContent = '移動先フォルダ...';
+  targetSel.appendChild(defOpt);
+  allFolders.forEach(function(f) {
+    var opt = document.createElement('option');
+    opt.value = f; opt.textContent = f;
+    targetSel.appendChild(opt);
+  });
+}
+
+function moveSelected() {
+  var targetSel = document.getElementById('selMoveTarget');
+  if (!targetSel || !targetSel.value) { alert('移動先フォルダを選択してください'); return; }
+  var target = targetSel.value;
+  var keys = Object.keys(SELECTED_KEYS).filter(function(k) { return SELECTED_KEYS[k]; });
+  if (!keys.length) return;
+  var index;
+  try { index = JSON.parse(localStorage.getItem('pokeca_index') || '[]'); }
+  catch(e) { return; }
+  index.forEach(function(e) {
+    if (keys.indexOf(e.key) !== -1) e.folder = target;
+  });
+  localStorage.setItem('pokeca_index', JSON.stringify(index));
+  keys.forEach(function(k) { delete SELECTED_KEYS[k]; });
+  renderSaveList();
+}
+
+function clearAllSelection() {
+  SELECTED_KEYS = {};
+  renderSaveList();
+}
+
+function loadSave(key) {
+  var raw = localStorage.getItem(key);
+  if (!raw) { alert('保存データが見つかりません'); return; }
+  if (!confirm('現在の入力内容を上書きして読み込みますか？')) return;
+  if (LAST_SAVE_KEY && LAST_SAVE_KEY !== key && /^pokeca_draft_/.test(LAST_SAVE_KEY)) {
+    localStorage.removeItem(LAST_SAVE_KEY);
+    var idx = JSON.parse(localStorage.getItem('pokeca_index') || '[]');
+    localStorage.setItem('pokeca_index', JSON.stringify(idx.filter(function(e){ return e.key !== LAST_SAVE_KEY; })));
+  }
+  LAST_SAVE_KEY = key;
+  restoreState(JSON.parse(raw));
+  document.getElementById('saveListPanel').style.display = 'none';
+  updateSaveCount();
+}
+
+// ── フォルダ管理 ──────────────────────────────────────────
+function getDefaultFolder() {
+  var d = new Date();
+  return d.getFullYear() + '年' + (d.getMonth() + 1) + '月';
+}
+
+function getAllFolders() {
+  var index;
+  try { index = JSON.parse(localStorage.getItem('pokeca_index') || '[]'); }
+  catch(e) { index = []; }
+  var seen = {}, folders = [];
+  index.forEach(function(e) {
+    var f = e.folder || '未分類';
+    if (!seen[f]) { seen[f] = true; folders.push(f); }
+  });
+  return folders;
+}
+
+function getCurrentFolder() {
+  var sel = document.getElementById('folderSel');
+  return (sel && sel.value && sel.value !== '__new__') ? sel.value : getDefaultFolder();
+}
+
+function initFolderSel() {
+  var folders = getAllFolders();
+  var def = getDefaultFolder();
+  var sel = document.getElementById('folderSel');
+  if (!sel) return;
+  var prev = sel.value;
+  sel.innerHTML = '';
+  if (folders.indexOf(def) === -1) folders.unshift(def);
+  folders.forEach(function(f) {
+    var opt = document.createElement('option');
+    opt.value = f; opt.textContent = f;
+    sel.appendChild(opt);
+  });
+  var newOpt = document.createElement('option');
+  newOpt.value = '__new__'; newOpt.textContent = '＋ 新しいフォルダを作成...';
+  sel.appendChild(newOpt);
+  // 直前の選択を復元（なければデフォルト）
+  sel.value = (prev && prev !== '__new__' && folders.indexOf(prev) !== -1) ? prev : def;
+}
+
+function onFolderSelChange() {
+  var sel  = document.getElementById('folderSel');
+  var wrap = document.getElementById('folderNewWrap');
+  if (sel.value === '__new__') {
+    wrap.style.display = 'flex';
+    document.getElementById('folderNew').focus();
+  } else {
+    wrap.style.display = 'none';
+  }
+}
+
+function addNewFolder() {
+  var name = document.getElementById('folderNew').value.trim();
+  if (!name) { document.getElementById('folderNew').focus(); return; }
+  var sel = document.getElementById('folderSel');
+  for (var i = 0; i < sel.options.length; i++) {
+    if (sel.options[i].value === name) { sel.value = name; cancelNewFolder(); return; }
+  }
+  var opt = document.createElement('option');
+  opt.value = name; opt.textContent = name;
+  sel.insertBefore(opt, sel.lastChild); // "__new__" の直前に挿入
+  sel.value = name;
+  cancelNewFolder();
+}
+
+function cancelNewFolder() {
+  document.getElementById('folderNew').value = '';
+  document.getElementById('folderNewWrap').style.display = 'none';
+  var sel = document.getElementById('folderSel');
+  if (sel.value === '__new__') sel.selectedIndex = 0;
+}
+
+function renameFolder(oldName) {
+  var newName = prompt('新しいフォルダ名を入力してください', oldName);
+  if (!newName || !newName.trim() || newName.trim() === oldName) return;
+  newName = newName.trim();
+  var index;
+  try { index = JSON.parse(localStorage.getItem('pokeca_index') || '[]'); }
+  catch(e) { return; }
+  index.forEach(function(e) {
+    if ((e.folder || '未分類') === oldName) e.folder = newName;
+  });
+  localStorage.setItem('pokeca_index', JSON.stringify(index));
+  // 折りたたみ状態も引き継ぐ
+  var col;
+  try { col = JSON.parse(localStorage.getItem('pokeca_folders_col') || '{}'); }
+  catch(e) { col = {}; }
+  if (oldName in col) { col[newName] = col[oldName]; delete col[oldName]; }
+  localStorage.setItem('pokeca_folders_col', JSON.stringify(col));
+  initFolderSel();
+  renderSaveList();
+}
+
+function bulkMoveFolder(fromFolder, toFolder) {
+  var index;
+  try { index = JSON.parse(localStorage.getItem('pokeca_index') || '[]'); }
+  catch(e) { return; }
+  var count = index.filter(function(e){ return (e.folder || '未分類') === fromFolder; }).length;
+  if (!confirm('「' + fromFolder + '」の ' + count + ' 件をすべて「' + toFolder + '」に移動しますか？')) return;
+  index.forEach(function(e) {
+    if ((e.folder || '未分類') === fromFolder) e.folder = toFolder;
+  });
+  localStorage.setItem('pokeca_index', JSON.stringify(index));
+  initFolderSel();
+  renderSaveList();
+}
+
+function moveSaveFolder(key, newFolder) {
+  var index;
+  try { index = JSON.parse(localStorage.getItem('pokeca_index') || '[]'); }
+  catch(e) { return; }
+  for (var i = 0; i < index.length; i++) {
+    if (index[i].key === key) { index[i].folder = newFolder; break; }
+  }
+  localStorage.setItem('pokeca_index', JSON.stringify(index));
+  initFolderSel();
+  renderSaveList();
+}
+
+function deleteSave(key) {
+  if (!confirm('このカードの保存データを削除しますか？')) return;
+  localStorage.removeItem(key);
+  var index = JSON.parse(localStorage.getItem('pokeca_index') || '[]');
+  localStorage.setItem('pokeca_index', JSON.stringify(index.filter(function(e){ return e.key !== key; })));
+  updateSaveCount();
+  renderSaveList();
+}
+
+function restoreState(st) {
+  document.getElementById('productName').value   = st.productName   || '';
+  document.getElementById('skuDate').value       = st.skuDate       || '';
+  document.getElementById('skuLoc').value        = st.skuLoc        || '';
+  document.getElementById('skuCard').value       = st.skuCard       || '';
+  document.getElementById('purchaseDate').value  = st.purchaseDate  || '';
+  document.getElementById('purchasePrice').value = st.purchasePrice || '';
+  document.getElementById('transactionId').value = st.transactionId || '';
+  document.getElementById('sellerName').value    = st.sellerName    || '';
+  document.getElementById('sellerAddress').value = st.sellerAddress || '';
+  document.getElementById('listingDate').value   = st.listingDate   || '';
+  document.getElementById('platformOther').value = st.platformOther || '';
+
+  S_PLATFORM = st.platform || '';
+  document.querySelectorAll('.pc').forEach(function(c){
+    c.classList.toggle('active', c.textContent.trim() === S_PLATFORM);
+  });
+  document.getElementById('platformOther').style.display = S_PLATFORM === 'その他' ? '' : 'none';
+
+  S_SELLER_TYPE = st.sellerType || '';
+  document.querySelectorAll('.stc').forEach(function(c){
+    c.classList.toggle('active', c.textContent.trim() === S_SELLER_TYPE);
+  });
+
+  S_ADDRESS_TYPE = st.addressType || '';
+  document.querySelectorAll('.adc').forEach(function(c){
+    var match = (S_ADDRESS_TYPE === '匿名発送' && c.textContent.includes('匿名')) ||
+                (S_ADDRESS_TYPE === '住所入力' && c.textContent.includes('住所'));
+    c.classList.toggle('active', match);
+  });
+  document.getElementById('sellerAddress').style.display = S_ADDRESS_TYPE === '住所入力' ? '' : 'none';
+
+  document.getElementById('genTitleIn').value = st.titleInput || '';
+  S.title = st.title || '';
+  document.getElementById('titleBadge').style.display = S.title ? 'inline-block' : 'none';
+
+  S.grade = st.grade || '';
+  document.querySelectorAll('.gc').forEach(function(c){
+    var gn = c.querySelector('.gn');
+    c.classList.toggle('active', !!(gn && gn.textContent.trim() === S.grade));
+  });
+  var gb = document.getElementById('gradeBadge');
+  if (S.grade) { gb.style.display = 'inline-block'; gb.textContent = '✅ ' + S.grade; }
+  else           { gb.style.display = 'none'; }
+
+  document.getElementById('appJa').value = st.appJa || '';
+  document.getElementById('appEn').value = st.appEn || '';
+  S.app = st.app || [];
+  document.getElementById('appPrev').style.display  = S.app.length ? '' : 'none';
+  document.getElementById('appBadge').style.display = S.app.length ? 'inline-block' : 'none';
+
+  document.getElementById('incJa').value = st.incJa || '';
+  document.getElementById('incEn').value = st.incEn || '';
+  S.inc   = st.inc   || [];
+  S.noInc = st.noInc || false;
+  document.getElementById('noInc').checked = S.noInc;
+  document.getElementById('incSection').style.display = S.noInc ? 'none' : '';
+  document.getElementById('incPrev').style.display    = S.inc.length ? '' : 'none';
+  document.getElementById('incBadge').style.display   = S.inc.length ? 'inline-block' : 'none';
+
+  updSKU(); updTab(); buildTpl();
+}
+
+function buildTpl() {
+  var title  = S.title || '(ここにタイトルが入ります)';
+  var grade  = S.grade || '(グレードを選択してください)';
+  var appLi  = liList(S.app, '(状態詳細を入力・英訳してください)');
+
+  var tpl = '<meta charset="utf-8">\n'
++ '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
++ '<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css">\n'
++ '\n\n\n'
++ '<style>\n'
++ '  .change-background-color h2:before {\n'
++ '    background: #C9A227 !important;\n'
++ '  }\n\n\n\n\n'
++ '  .change-text-color h2:before {\n'
++ '    color: #C9A227 !important;\n'
++ '  }\n\n\n\n\n'
++ '  .change-border-color h2:before {\n'
++ '    background-image: linear-gradient(to right, #C9A227, #C9A227 6px, transparent 5px, transparent 15px) !important;\n'
++ '  }\n\n\n\n\n'
++ '  .change-triangle-color h2:before {\n'
++ '    border-color: #C9A227 transparent transparent transparent !important;\n'
++ '  }\n\n\n\n\n'
++ '  .template__main table tr:first-of-type {\n'
++ '    background: #C9A227 !important;\n'
++ '    color: black !important;\n'
++ '  }\n\n\n\n\n'
++ '  .template__main.main6 h2,\n'
++ '  .template__main.main1 h2 {\n'
++ '    color: #000;\n'
++ '  }\n\n\n\n\n'
++ '  .template__main {\n'
++ '    word-break: break-word;\n'
++ '    width: 100%;\n'
++ '    background: #fff;\n'
++ '    border: 1px solid #000;\n'
++ '    padding: 0 20px 30px 20px !important;\n'
++ '    -webkit-box-sizing: border-box;\n'
++ '    box-sizing: border-box;\n'
++ '    word-break: break-all;\n'
++ '  }\n\n\n\n\n'
++ '  .template__main h1 {\n'
++ '    font-family: "Verdana", sans-serif, sans-serif !important;\n'
++ '    font-weight: bold;\n'
++ '    font-size: 22px !important;\n'
++ '    margin: 30px 0;\n'
++ '    text-align: center;\n'
++ '    color: #111;\n'
++ '    word-break: break-word;\n'
++ '  }\n\n\n\n\n'
++ '  .template__main h2 {\n'
++ '    font-family: "Verdana", sans-serif, sans-serif !important;\n'
++ '    margin: 0 0 15px 0;\n'
++ '    font-size: 18px;\n'
++ '    line-height: 1.2;\n'
++ '    text-align: left;\n'
++ '    word-break: break-word;\n'
++ '  }\n\n\n\n\n'
++ '  .template__main h3 {\n'
++ '    margin: 0;\n'
++ '    padding-left: 10px;\n'
++ '    font-size: 14px;\n'
++ '    color: #111;\n'
++ '    word-break: break-word;\n'
++ '  }\n\n\n\n\n'
++ '  .template__main .main__table {\n'
++ '    font-family: "Verdana", sans-serif, sans-serif !important;\n'
++ '    width: auto;\n'
++ '    padding-left: 50px;\n'
++ '    padding-bottom: 40px;\n'
++ '  }\n\n\n\n\n'
++ '  .template__main .main__table h3 {\n'
++ '    margin: 0;\n'
++ '    padding: 0 0 10px 0;\n'
++ '    font-size: 14px;\n'
++ '    color: #111;\n'
++ '    text-align: center;\n'
++ '    word-wrap: break-word;\n'
++ '    word-break: break-word;\n'
++ '  }\n\n\n\n\n'
++ '  .template__main .main__table table th {\n'
++ '    text-align: left;\n'
++ '    font-weight: bold;\n'
++ '  }\n\n\n\n\n'
++ '  .template__main .product_dec {\n'
++ '    margin: 0;\n'
++ '    padding: 0 0 20px 0;\n'
++ '    color: #111;\n'
++ '    text-align: left;\n'
++ '  }\n\n\n\n\n'
++ '  .template__main .product__intro {\n'
++ '    line-height: 24px;\n'
++ '    font-size: 14px;\n'
++ '    padding: 0 30px 20px;\n'
++ '  }\n\n\n\n\n'
++ '  .template__main .product__intro ol {\n'
++ '    margin: 0;\n'
++ '    padding: 0;\n'
++ '  }\n\n\n\n\n'
++ '  .template__main .product__intro ol li {\n'
++ '    font-family: "Verdana", sans-serif, sans-serif !important;\n'
++ '    list-style-type: disc;\n'
++ '    font-size: 14px;\n'
++ '    word-break: break-word;\n'
++ '    color: #111;\n'
++ '  }\n\n\n\n\n'
++ '  .template__main p {\n'
++ '    word-break: break-word;\n'
++ '    font-family: "Verdana", sans-serif, sans-serif !important;\n'
++ '    margin: 0;\n'
++ '    padding: 0 10px 20px;\n'
++ '    color: #111;\n'
++ '    text-align: left;\n'
++ '    line-height: 24px;\n'
++ '    font-size: 14px;\n'
++ '  }\n\n\n\n\n'
++ '  .template__main table {\n'
++ '    border-collapse: separate;\n'
++ '    border-spacing: revert;\n'
++ '    width: 100% !important;\n'
++ '    font-size: 14px;\n'
++ '  }\n\n\n\n\n'
++ '  .template__main table tr {\n'
++ '    background-color: #eee;\n'
++ '    color: #111;\n'
++ '  }\n\n\n\n\n'
++ '  .template__main table tr:first-of-type {\n'
++ '    color: #111;\n'
++ '  }\n\n\n\n\n'
++ '  .template__main table th,\n'
++ '  .template__main table td {\n'
++ '    font-family: "Verdana", sans-serif, sans-serif !important;\n'
++ '    padding: 0.5em 0 0.5em 0.5em;\n'
++ '    word-break: break-word;\n'
++ '  }\n\n\n\n\n'
++ '  .template__main h3 {\n'
++ '    padding-bottom: 10px;\n'
++ '    font-weight: bold;\n'
++ '    font-family: "Verdana", sans-serif, sans-serif !important;\n'
++ '  }\n\n\n\n\n'
++ '  .aside__item:not(:last-of-type) {\n'
++ '    padding-bottom: 20px;\n'
++ '  }\n\n\n\n\n'
++ '  .template__main section {\n'
++ '    padding-bottom: 20px;\n'
++ '  }\n\n\n\n\n'
++ '  .template__main .img-area {\n'
++ '    text-align: center;\n'
++ '  }\n\n\n\n\n'
++ '  .template__main img {\n'
++ '    max-width: 100%;\n'
++ '    object-fit: cover;\n'
++ '  }\n\n\n\n\n'
++ '  .template__main h2 {\n'
++ "    font-family: 'FontAwesome';\n"
++ '    font-weight: 900;\n'
++ '    position: relative;\n'
++ '    background-color: #F7F7F7;\n'
++ '    color: #111;\n'
++ '    border-left: 5px solid #0A1C5E;\n'
++ '    margin-bottom: 15px;\n'
++ '    padding: 10px 40px;\n'
++ '  }\n\n\n\n\n'
++ '  .template__main h2::before {\n'
++ '    position: absolute;\n'
++ '    left: 10px;\n'
++ "    font-family: 'FontAwesome';\n"
++ '  }\n\n\n\n\n'
++ "  section h2:before {\n    content: '\\f044'\n  }\n\n\n\n\n"
++ "  .shipping h2::before {\n    content: '\\f072';\n  }\n\n\n\n\n"
++ "  .tyuui h2::before {\n    content: '\\f071';\n  }\n"
++ '</style>\n\n\n\n\n'
++ '<div class="template__main main4 change-color-4 change-text-color">\n'
++ '  <h1>' + title + '</h1>\n\n'
++ '  <section class="product_dec">\n'
++ '    <h2 class="change-color-background">Description</h2>\n'
++ '    <div class="product">\n'
++ '      <div class="main__item">\n'
++ '        <h3 class="pBottom-10">Grade</h3>\n'
++ '        <div class="product__intro" property="description">\n'
++ '          <ol>\n'
++ '            <li><font color="#000000" face="Arial, sans-serif"><span style="font-size: 14.6667px; white-space-collapse: preserve;"><strong>'
++ grade
++ '</strong></span></font></li>\n'
++ '          </ol>\n'
++ '        </div>\n'
++ '      </div>\n\n'
++ '      <div class="main__item">\n'
++ '        <h3 class="pBottom-10">Appearance</h3>'
++ '<div class="product__intro" property="description"><ol>' + appLi + '</ol></div>'
++ '</div>'
++ incBlock()
++ '\n\n\n<div class="main__item"><div class="product__intro" property="description"><div>      <font face="Verdana, sans-serif, sans-serif">\n'
++ '                            <div>\n'
++ '                                The above condition is based on my personal opinion.<strong><br>Please check the photos and video carefully for details, and feel free to ask any questions.</strong></div></font><font face="Verdana, sans-serif, sans-serif"><div>Thank you！</div><div><strong><br></strong></div>\n'
++ '      </font>\n'
++ '</div>\n'
++ '        </div>\n'
++ '      </div>\n\n'
++ '      <div class="main__item">\n'
++ '        <h3 class="pBottom-10">Combined Shipping</h3>'
++ '<div class="product__intro" property="description"><ol><li>Combined shipping is welcome to save on shipping costs.<br></li><li>For U.S. orders, the shipping charge includes import duties and taxes. Combined shipping may reduce only the shipping cost, while the import duties and taxes remain unchanged.</li></ol>\n'
++ '        </div>\n'
++ '      </div>\n'
++ '      <div class="main__item">\n'
++ '        <h3 class="pBottom-10">Packing</h3>\n'
++ '        <div class="product__intro" property="description">\n'
++ '          <ol>\n'
++ '            <li>The card will be put in a sleeve and protected.</li>'
++ '<li>A card stand for photography is not included.<br></li></ol>\n'
++ '        </div>\n'
++ '      </div>\n'
++ '    </div>\n'
++ '  </section>\n\n\n\n\n'
++ '  <aside>\n'
++ '    <div class="shipping aside__item">\n'
++ '      <h2 class="change-color-background">Shipping</h2>\n'
++ '      <div class="product__intro" property="description">\n'
++ '        <ol>\n'
++ '          <li>We always send the item with a tracking number. So please place an order without any concern on delivery. You can always track the delivery status.</li>\n'
++ '          <li>Shipping is only available to the address registered in eBay. If you want us to send another address, please change your address on eBay and then place an order.</li>\n'
++ '          <li>Shipping is available from Monday to Friday. Weekends are not available because freight (shipping) companies are closed.</li>\n'
++ '          <li>We do not mark merchandise values below value or mark items as “gifts” – Japan, US and International government regulations prohibit such behavior.</li>\n'
++ '          <li>If your address is in the remote areas defined by the freight (shipping) company, please pay the additional shipping fees with PayPal.</li>\n'
++ '        </ol>\n'
++ '      </div>\n'
++ '    </div>\n\n\n\n\n'
++ '    <div class="tyuui aside__item">\n'
++ '      <h2 class="change-color-1 change-color-2 change-color-6 change-background-color change-text-color change-border-color change-triangle-color">About Importer\'s Obligation</h2>\n\n\n\n\n'
++ '      <h3>For buyers in the United States:</h3>\n'
++ '      <div class="product__intro" property="description">\n'
++ '        <ol>\n'
++ '          <li>Import duties and taxes are included in the item price or shipping cost.</li>\n'
++ '          <li>Items shipped to the U.S. are sent under the Delivered Duty Paid (DDP) method, which means all import-related charges are prepaid.</li>\n'
++ '          <li>You don\'t need to pay any additional fees when your order arrives.</li>\n'
++ '        </ol>\n'
++ '      </div>\n\n\n\n\n'
++ '      <h3>For buyers outside the United States:</h3>\n'
++ '      <div class="product__intro" property="description">\n'
++ '        <ol>\n'
++ '          <li>Import duties, taxes, and charges are not included in the item price or shipping cost.</li>\n'
++ '          <li>These charges are the buyer\'s responsibility.</li>\n'
++ '          <li>Please check with your country\'s customs office to determine what these additional costs will be before bidding or buying.</li>\n'
++ '        </ol>\n'
++ '      </div>\n'
++ '      <p>Thank you for your understanding.</p>\n'
++ '    </div>\n'
++ '  </aside>\n'
++ '</div>';
+
+  document.getElementById('tplOut').value = tpl;
+}
+
+// ── Copy ─────────────────────────────────────────────────
+function copyTpl() {
+  var txt = document.getElementById('tplOut').value;
+  if (!txt) { alert('先に「今すぐ更新」を押してください。'); return; }
+  function done() {
+    var el = document.getElementById('copyOk');
+    el.style.display = 'block';
+    setTimeout(function(){ el.style.display = 'none'; }, 3000);
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(txt).then(done).catch(function(){
+      document.getElementById('tplOut').select();
+      document.execCommand('copy'); done();
+    });
+  } else {
+    document.getElementById('tplOut').select();
+    document.execCommand('copy'); done();
+  }
+}
+
+buildTpl();
+
+// ── 6. Item Specifics ─────────────────────────────────────
+
+var SPEC_FIELDS = [
+  { key:'Game',                  label:'Game',                    cat:'基本情報' },
+  { key:'UPC',                   label:'UPC',                     cat:'基本情報' },
+  { key:'Card Type',             label:'Card Type',               cat:'カード属性' },
+  { key:'Pokemon',               label:'Pokémon',                 cat:'カード属性' },
+  { key:'Speciality',            label:'Speciality',              cat:'カード属性' },
+  { key:'Stage',                 label:'Stage',                   cat:'カード属性' },
+  { key:'Set',                   label:'Set',                     cat:'セット情報' },
+  { key:'Card Name',             label:'Card Name',               cat:'セット情報' },
+  { key:'Character',             label:'Character',               cat:'セット情報' },
+  { key:'Age Level',             label:'Age Level',               cat:'セット情報' },
+  { key:'Rarity',                label:'Rarity',                  cat:'セット情報' },
+  { key:'Features',              label:'Features',                cat:'セット情報' },
+  { key:'Manufacturer',         label:'Manufacturer',            cat:'セット情報' },
+  { key:'Finish',                label:'Finish',                  cat:'カード仕様' },
+  { key:'Attribute_MTG_Color',   label:'Attribute/MTG:Color',     cat:'カード仕様' },
+  { key:'Creature_Monster_Type', label:'Creature/Monster Type',   cat:'カード仕様' },
+  { key:'Card Number',           label:'Card Number',             cat:'カード仕様' },
+  { key:'Autographed',           label:'Autographed',             cat:'サイン・特典' },
+  { key:'Autograph Format',      label:'Autograph Format',        cat:'サイン・特典' },
+  { key:'Signed By',             label:'Signed By',               cat:'サイン・特典' },
+  { key:'Language',              label:'Language',                cat:'地域・製造' },
+  { key:'Year Manufactured',     label:'Year Manufactured',       cat:'地域・製造' },
+  { key:'Country of Origin',     label:'Country of Origin',       cat:'地域・製造' },
+  { key:'Vintage',               label:'Vintage',                 cat:'地域・製造' },
+  { key:'Material',              label:'Material',                cat:'素材・サイズ' },
+  { key:'Card Size',             label:'Card Size',               cat:'素材・サイズ' },
+  { key:'Illustrator',           label:'Illustrator',             cat:'詳細情報' },
+  { key:'HP',                    label:'HP',                      cat:'詳細情報' },
+  { key:'Attack_Power',          label:'Attack/Power',            cat:'詳細情報' },
+  { key:'Defense_Toughness',     label:'Defense/Toughness',       cat:'詳細情報' },
+  { key:'California Prop 65',    label:'California Prop 65',      cat:'法的情報' },
+  { key:'Cost',                  label:'Cost',                    cat:'詳細情報' },
+  { key:'Convention_Event',      label:'Convention/Event',        cat:'特殊' },
+  { key:'Customized',            label:'Customized',              cat:'特殊' },
+  { key:'Franchise',             label:'Franchise',               cat:'特殊' }
+];
+
+var SPEC_SYSTEM = `あなたはポケモンカードゲーム（ポケカ）の専門家であり、eBayの商品情報入力のエキスパートです。
+ユーザーが指定したポケモンカードについて、eBayの各項目に最も正確な値を入力してください。
+
+【最重要ルール】
+- 日本語名または日本語版と判断できる場合、必ず日本語版のカード番号・HPを使用すること
+- 不確かな値は推測で埋めず "Does Not Apply" または "Unknown" と記載すること
+- タイトルに明記されていない情報を勝手に推測して追加しないこと（特に 1st Edition / Shadowless / PSA graded など）
+
+以下のJSON形式のみで回答（コードブロック・余計な文字は一切不要）:
+{"Game":{"value":"...","reason":"..."},"UPC":{"value":"...","reason":"..."},"Card Type":{"value":"...","reason":"..."},"Pokemon":{"value":"...","reason":"..."},"Speciality":{"value":"...","reason":"..."},"Stage":{"value":"...","reason":"..."},"Set":{"value":"...","reason":"..."},"Card Name":{"value":"...","reason":"..."},"Character":{"value":"...","reason":"..."},"Age Level":{"value":"...","reason":"..."},"Rarity":{"value":"...","reason":"..."},"Features":{"value":"...","reason":"..."},"Manufacturer":{"value":"...","reason":"..."},"Finish":{"value":"...","reason":"..."},"Attribute_MTG_Color":{"value":"...","reason":"..."},"Creature_Monster_Type":{"value":"...","reason":"..."},"Card Number":{"value":"...","reason":"..."},"Autographed":{"value":"...","reason":"..."},"Autograph Format":{"value":"...","reason":"..."},"Signed By":{"value":"...","reason":"..."},"Language":{"value":"...","reason":"..."},"Year Manufactured":{"value":"...","reason":"..."},"Country of Origin":{"value":"...","reason":"..."},"Vintage":{"value":"...","reason":"..."},"Material":{"value":"...","reason":"..."},"Card Size":{"value":"...","reason":"..."},"Illustrator":{"value":"...","reason":"..."},"HP":{"value":"...","reason":"..."},"Attack_Power":{"value":"...","reason":"..."},"Defense_Toughness":{"value":"...","reason":"..."},"California Prop 65":{"value":"...","reason":"..."},"Cost":{"value":"...","reason":"..."},"Convention_Event":{"value":"...","reason":"..."},"Customized":{"value":"...","reason":"..."},"Franchise":{"value":"...","reason":"..."}}
+
+各フィールドの指針:
+- Game: "Pokémon" 固定
+- UPC: 不明なら "Does Not Apply"
+- Card Type: Pokémon Card / Trainer Card / Energy Card
+- Pokemon: ポケモン名（英語）
+- Speciality: ex / V / VMAX / VSTAR / GX / EX / Full Art / SAR / ACE SPEC / Holo など。ノーマルカードは "Does Not Apply"
+- Stage: Basic / Stage 1 / Stage 2 / MEGA / LEGEND
+- Set: 公式セット名（英語）例: Scarlet & Violet 151 / Neo Destiny / Base Set
+- Card Name: カード正式名称（英語）
+- Character: ポケモンのキャラクター名（英語）
+- Age Level: "4+" が標準
+- Rarity: Common / Uncommon / Rare / Holo Rare / Ultra Rare / Secret Rare / Special Art Rare
+- Features: ホロ加工があれば "Holographic"、フルアートなら "Full Art" など実際に確認できる特徴のみ記載（カンマ区切り）。タイトルに "1st Edition" と明記されている場合のみ追加すること。推測で追加禁止
+- Manufacturer:【重要】発売時期で使い分けること
+    - 2003年以前（Base Set / Jungle / Fossil / Team Rocket / Gym Heroes / Gym Challenge / Neo Genesis / Neo Discovery / Neo Revelation / Neo Destiny / Legendary Collection など）→ "Nintendo"
+    - 2004年以降（EX Ruby & Sapphire 以降の全セット）→ "The Pokémon Company"
+- Finish: Holo / Non-Holo / Reverse Holo / Etched Foil
+- Attribute_MTG_Color: ポケモンのタイプ（Fire/Water/Grass/Psychic/Lightning/Fighting/Darkness/Metal/Dragon/Colorless/Fairy）
+- Creature_Monster_Type: タイプに応じた選択（ほのお→Pyro, みず→Aqua, エスパー→Psychic, くさ→Plant, でんき→Thunder, かくとう→Beast-Warrior, あく→Fiend, はがね→Machine, ドラゴン→Dragon, ノーマル→Beast, どく/むし→Insect, いわ/じめん→Rock, ひこう→Winged Beast, こおり→Ice-Snow, ゴースト→Specter, フェアリー→Fairy）
+- Card Number: セット内番号（例: "006/165"）。日本語版なら日本語版番号を使用
+- Autographed: "No"
+- Autograph Format: "Does Not Apply"
+- Signed By: "Does Not Apply"
+- Language: Japanese / English
+- Year Manufactured:【重要・空欄禁止】日本語版カードの日本国内発売年（西暦4桁）を必ず記載すること。VintageフィールドのreasonとYear Manufacturedは必ず一致させること。例: Neo Destiny日本語版→"2002"、Base Set日本語版→"1996"、スカーレット&バイオレット→"2022"
+- Country of Origin: "Japan"
+- Vintage:【重要】現在（2026年）から20年以上前に発売されたカードは "Yes"。つまり2006年以前に発売されたカードは "Yes"。2007年以降は "No"
+- Material: "Paper"
+- Card Size: 日本語版→"Japanese"、英語版→"Standard"
+- Illustrator: 知識として確実に判明する場合のみ記載。不明なら "Unknown"
+- HP: 数値のみ（例: "80"）。日本語版の値を使用
+- Attack_Power:【重要】ポケモンカードには必ず攻撃技があります。"Does Not Apply" は絶対に使用禁止。カードの最大攻撃ダメージの数値を記載すること（例: "60"）。エネルギー状況によって変動する技は最大値を記載。トレーナーカード・エネルギーカードのみ "Does Not Apply"
+- Defense_Toughness: "Does Not Apply"
+- California Prop 65: "N/A"
+- Cost: 主要技のエネルギーコスト（例: "2 Psychic Energy"）
+- Convention_Event: 特別イベント限定でなければ "Does Not Apply"
+- Customized: "No"
+- Franchise: "Pokémon"
+
+reasonには日本語で、その値にした根拠を30〜60文字程度で。`;
+
+function genSpecs(title) {
+  var card  = document.getElementById('specsCard');
+  var loadEl = document.getElementById('specsLoading');
+  var errEl  = document.getElementById('specsError');
+  var resEl  = document.getElementById('specsResults');
+
+  // カードを先に表示（APIキー有無に関わらず）
+  card.style.display  = '';
+  loadEl.style.display = 'none';
+  errEl.style.display  = 'none';
+  resEl.style.display  = 'none';
+  setTimeout(function(){ card.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 80);
+
+  var key = document.getElementById('apiKey').value.trim();
+  if (!key) {
+    errEl.textContent = '⚠️ Google AI APIキーを入力してください。入力後、再度「確定してテンプレートに反映」を押してください。';
+    errEl.style.display = '';
+    return;
+  }
+
+  var model = document.getElementById('modelSel').value;
+  loadEl.style.display = '';
+
+  var endpoint = GEMINI_BASE + model + ':generateContent?key=' + encodeURIComponent(key);
+  var userMsg  = 'eBay出品用に次のポケモンカードの各項目を正確に入力してください。\n\n【eBayタイトル】' + title + '\n\n【重要】このカードは日本語版です。英語版とはカード番号・HP・テキストが異なる場合があります。必ず日本語版の情報を使用してください。';
+
+  fetch(endpoint, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      system_instruction: { parts: [{ text: SPEC_SYSTEM }] },
+      contents: [{ parts: [{ text: userMsg }] }],
+      generationConfig: { maxOutputTokens: 2048, temperature: 0.1 }
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(j) {
+    loadEl.style.display = 'none';
+    if (j.error) { showSpecsError(j.error.message); return; }
+    var raw = (j.candidates[0].content.parts[0].text || '').trim();
+    // コードブロックや前置き文を除去
+    var cleaned = raw
+      .replace(/^```json\s*/i, '').replace(/^```\s*/i, '')
+      .replace(/\s*```$/g, '').trim();
+    var data;
+    try {
+      data = JSON.parse(cleaned);
+    } catch(e) {
+      // それでも失敗したら { } で囲まれた最初のJSONオブジェクトを抽出して再試行
+      var m = raw.match(/\{[\s\S]*\}/);
+      if (m) {
+        try { data = JSON.parse(m[0]); }
+        catch(e2) { data = null; }
+      }
+      if (!data) {
+        showSpecsError('AIの返答をJSONとして解析できませんでした。再度タイトルを確定してください。');
+        return;
+      }
+    }
+    renderSpecs(data);
+  })
+  .catch(function(e) {
+    loadEl.style.display = 'none';
+    showSpecsError('通信エラー: ' + e.message);
+  });
+}
+
+function showSpecsError(msg) {
+  var errEl = document.getElementById('specsError');
+  errEl.textContent = '⚠️ ' + msg;
+  errEl.style.display = '';
+}
+
+function renderSpecs(data) {
+  var container = document.getElementById('specsContainer');
+  container.innerHTML = '';
+  var curCat = null;
+
+  SPEC_FIELDS.forEach(function(f) {
+    if (f.cat !== curCat) {
+      curCat = f.cat;
+      var catEl = document.createElement('div');
+      catEl.className = 'specs-cat';
+      catEl.textContent = curCat;
+      container.appendChild(catEl);
+    }
+    var entry  = data[f.key] || {};
+    var val    = entry.value  || '';
+    var reason = entry.reason || '';
+    var isEmpty = !val || val === '' || val.toLowerCase() === 'does not apply';
+
+    var item = document.createElement('div');
+    item.className  = 'spec-item';
+    item.dataset.label = f.label;
+    item.dataset.value = val;
+
+    var safeVal    = val.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    var safeReason = reason.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    var safeAttr   = val.replace(/'/g,"\\'");
+
+    item.innerHTML =
+      '<span class="spec-name">' + f.label + '</span>' +
+      '<span class="spec-col">' +
+        '<span class="spec-val' + (isEmpty ? ' empty' : '') + '">' + (safeVal || '<i style="color:#bbb">（未入力）</i>') + '</span>' +
+        (reason && !isEmpty ? '<div class="spec-reason">' + safeReason + '</div>' : '') +
+      '</span>' +
+      '<button class="btn-scp" onclick="copySpecField(this,\'' + safeAttr + '\')">コピー</button>';
+
+    container.appendChild(item);
+  });
+
+  document.getElementById('specsResults').style.display = '';
+}
+
+function copySpecField(btn, val) {
+  navigator.clipboard.writeText(val).then(function() {
+    var orig = btn.textContent;
+    btn.textContent = '✓';
+    btn.classList.add('copied');
+    setTimeout(function(){ btn.textContent = orig; btn.classList.remove('copied'); }, 1400);
+  });
+}
+
+function copyAllSpecs() {
+  var items = document.querySelectorAll('.spec-item');
+  var lines = [];
+  items.forEach(function(item) {
+    var v = item.dataset.value;
+    if (v) lines.push(item.dataset.label + ': ' + v);
+  });
+  navigator.clipboard.writeText(lines.join('\n')).then(function() {
+    var ok = document.getElementById('specsCopyOk');
+    ok.style.display = 'inline-block';
+    setTimeout(function(){ ok.style.display = 'none'; }, 2000);
+  });
+}
+
+</script>
+</body>
+</html>

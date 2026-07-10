@@ -1,0 +1,9 @@
+service_account.json
+*.json
+data/
+__pycache__/
+*.py
+*.bat
+*.txt
+templates/
+.claude/
